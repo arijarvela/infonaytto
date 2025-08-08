@@ -25,14 +25,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - name: Install deps
-        run: npm ci
+        run: npm install
 
       - name: Build
         run: npm run build
-        env:
-          VITE_OWM_API_KEY: ${{ secrets.VITE_OWM_API_KEY }}
+        # jos käytät GitHub-sekretiksi tallennettua avainta, lisää tähän:
+        # env:
+        #   VITE_OWM_API_KEY: ${{ secrets.VITE_OWM_API_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
