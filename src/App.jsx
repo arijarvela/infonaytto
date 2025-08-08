@@ -339,7 +339,9 @@ export default function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
       <div className="max-w-6xl mx-auto grid gap-4">
         <div className="flex items-center justify-between">
-
+          <div>
+            <div className="text-2xl md:text-3xl font-bold"> </div>
+          </div>
           <div className="flex gap-2 items-center">
             <Button onClick={()=>setRefreshCal(x=>x+1)}>Päivitä</Button>
             <Button onClick={()=>setOpen(true)}>Asetukset</Button>
