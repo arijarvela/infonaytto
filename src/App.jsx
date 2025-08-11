@@ -1,67 +1,24 @@
-```jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 /* ---------------- OpenWeatherMap ---------------- */
-const OWM_API_KEY =
-  import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
+const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
 
-/* ---------------- Firebase (modular SDK) ---------------- */
-const FB_CONFIG = {
-  apiKey: import.meta.env.VITE_FB_API_KEY,
-  authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FB_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FB_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FB_APP_ID,
+/* ---------------- Ympäristömuuttujat GitHubista (Vite) ---------------- */
+const ENV_CFG = {
+  city: import.meta.env.VITE_CITY || "Raahe",
+  kids: ["Onerva", "Nanni", "Elmeri"],
+  ics: {
+    Onerva: import.meta.env.VITE_ICS_ONERVA || "",
+    Nanni: import.meta.env.VITE_ICS_NANNI || "",
+    Elmeri: import.meta.env.VITE_ICS_ELMERI || "",
+  },
+  icsProxy: import.meta.env.VITE_ICS_PROXY || "",
 };
-const FB_DOC_ID = "perhe";
-
-function hasFirebaseConfig() {
-  return !!(FB_CONFIG.apiKey && FB_CONFIG.projectId && FB_CONFIG.appId);
-}
-
-let __db = null;
-function getDB() {
-  if (!hasFirebaseConfig()) return null;
-  if (!__db) {
-    const app = initializeApp(FB_CONFIG);
-    __db = getFirestore(app);
-  }
-  return __db;
-}
-
-async function cloudLoadSettings() {
-  const db = getDB();
-  if (!db) return null;
-  const ref = doc(db, "settings", FB_DOC_ID);
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
-}
-
-async function cloudSaveSettings(cfg) {
-  const db = getDB();
-  if (!db) return false;
-  const docData = {
-    city: cfg.city || "",
-    kids: Array.isArray(cfg.kids) ? cfg.kids : ["Onerva", "Nanni", "Elmeri"],
-    ics: cfg.ics || {},
-    icsProxy: cfg.icsProxy || "",
-    timetableSlots:
-      cfg.timetableSlots ||
-      ["8-9", "9-10", "10-11", "11-12", "12-13", "13-14", "14-15", "15-16"],
-  };
-  await setDoc(doc(db, "settings", FB_DOC_ID), docData, { merge: true });
-  return true;
-}
 
 /* ---------------- Pienet UI-komponentit ---------------- */
 function Card({ className = "", children }) {
   return (
-    <div
-      className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}
-    >
+    <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>
       {children}
     </div>
   );
@@ -120,9 +77,7 @@ function useLocalStorage(key, initialValue) {
 
 /* ---------------- Sää ---------------- */
 async function getCoordsFromCity(city) {
-  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
-    city
-  )}&limit=1&appid=${OWM_API_KEY}`;
+  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${OWM_API_KEY}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Geokoodaus ${res.status}`);
   const data = await res.json();
@@ -196,9 +151,7 @@ function WeatherCard({ city }) {
     <Card>
       <CardHeader className="flex items-center justify-between">
         <CardTitle className="text-xl">Sää – {city || "(ei asetettu)"}</CardTitle>
-        <div className="text-sm text-red-400">
-          {error || (loading ? "Päivitetään…" : "")}
-        </div>
+        <div className="text-sm text-red-400">{error || (loading ? "Päivitetään…" : "")}</div>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
@@ -209,30 +162,17 @@ function WeatherCard({ city }) {
               src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`}
             />
           )}
-          <div className="text-5xl font-bold">
-            {data?.current?.temp ?? "–"}°C
-          </div>
-          <div className="text-sm text-zinc-300 capitalize">
-            {data?.current?.desc || ""}
-          </div>
-          <div className="text-sm text-zinc-300">
-            Tuuli {data?.current?.wind ?? "–"} m/s
-          </div>
+          <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
+          <div className="text-sm text-zinc-300 capitalize">{data?.current?.desc || ""}</div>
+          <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
         <div className="overflow-x-auto">
           <div className="grid grid-flow-col auto-cols-max gap-2">
             {data?.hours?.map((h, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-zinc-700 p-3 text-center w-24"
-              >
+              <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
                 {h.icon && (
-                  <img
-                    className="mx-auto h-8 w-8"
-                    alt={h.desc || ""}
-                    src={`https://openweathermap.org/img/wn/${h.icon}.png`}
-                  />
+                  <img className="mx-auto h-8 w-8" alt={h.desc || ""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />
                 )}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
@@ -247,12 +187,16 @@ function WeatherCard({ city }) {
 
 /* ---------------- ICS ---------------- */
 function unfoldIcsLines(text) {
-  const raw = (text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = raw.split("\n");
+  const raw = (text || "").replace(/
+/g, "
+").replace(/
+/g, "
+");
+  const lines = raw.split("
+");
   const out = [];
   for (const l of lines) {
-    if ((l.startsWith(" ") || l.startsWith("\t")) && out.length)
-      out[out.length - 1] += l.slice(1);
+    if ((l.startsWith(" ") || l.startsWith("	")) && out.length) out[out.length - 1] += l.slice(1);
     else out.push(l);
   }
   return out;
@@ -272,9 +216,7 @@ function parseIcsDate(v) {
   const hh = +v.slice(9, 11) || 0,
     mm = +v.slice(11, 13) || 0,
     ss = +v.slice(13, 15) || 0;
-  return z
-    ? new Date(Date.UTC(y, m, d, hh, mm, ss))
-    : new Date(y, m, d, hh, mm, ss);
+  return z ? new Date(Date.UTC(y, m, d, hh, mm, ss)) : new Date(y, m, d, hh, mm, ss);
 }
 function parseICS(text) {
   const lines = unfoldIcsLines(text);
@@ -310,33 +252,22 @@ async function fetchICS(url, proxy) {
 }
 
 /* ---------------- Lukujärjestys ---------------- */
-const HOURS = [
-  "8-9",
-  "9-10",
-  "10-11",
-  "11-12",
-  "12-13",
-  "13-14",
-  "14-15",
-  "15-16",
-];
+const HOURS = ["8-9", "9-10", "10-11", "11-12", "12-13", "13-14", "14-15", "15-16"];
 const WEEKDAYS = ["maanantai", "tiistai", "keskiviikko", "torstai", "perjantai"];
 function normalizeGrid(cfg) {
   const next = { ...(cfg || {}) };
   if (!Array.isArray(next.kids)) next.kids = ["Onerva", "Nanni", "Elmeri"];
   if (!Array.isArray(next.timetableSlots)) next.timetableSlots = [...HOURS];
-  if (typeof next.timetable !== "object" || next.timetable === null)
-    next.timetable = {};
+  if (typeof next.timetable !== "object" || next.timetable === null) next.timetable = {};
   for (const d of WEEKDAYS) {
     if (!next.timetable[d]) next.timetable[d] = {};
     for (let s = 0; s < next.timetableSlots.length; s++) {
       const label = next.timetableSlots[s] || HOURS[s] || `${s}`;
-      if (!Array.isArray(next.timetable[d][label]))
-        next.timetable[d][label] = Array(next.kids.length).fill("");
+      if (!Array.isArray(next.timetable[d][label])) next.timetable[d][label] = Array(next.kids.length).fill("");
       else if (next.timetable[d][label].length < next.kids.length) {
         next.timetable[d][label] = [
           ...next.timetable[d][label],
-          ...Array(next.kids.length - next.timetable[d][label].length).fill(""),
+          ...Array(next.kids.length - next.timetable[d][label].length).fill("")
         ];
       }
     }
@@ -405,9 +336,7 @@ function TimetableCard({ cfg }) {
                 <tr key={slot}>
                   <td className="p-2 border border-zinc-700 text-center">{slot}</td>
                   {cfgN.kids.map((_, i) => (
-                    <td key={i} className="p-1 border border-zinc-700">
-                      {table?.[slot]?.[i] || "—"}
-                    </td>
+                    <td key={i} className="p-1 border border-zinc-700">{table?.[slot]?.[i] || "—"}</td>
                   ))}
                 </tr>
               ))}
@@ -447,8 +376,8 @@ function LiveClock() {
 
 /* ---------------- Defaults ---------------- */
 const DEFAULT_CFG = {
-  city: "Raahe",
-  kids: ["Onerva", "Nanni", "Elmeri"],
+  city: ENV_CFG.city,
+  kids: [...ENV_CFG.kids],
   timetableSlots: [...HOURS],
   timetable: {
     maanantai: {},
@@ -457,8 +386,8 @@ const DEFAULT_CFG = {
     torstai: {},
     perjantai: {},
   },
-  ics: { Onerva: "", Nanni: "", Elmeri: "" },
-  icsProxy: "",
+  ics: { ...ENV_CFG.ics },
+  icsProxy: ENV_CFG.icsProxy,
 };
 
 /* ---------------- App ---------------- */
@@ -468,26 +397,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [lastIcsRun, setLastIcsRun] = useLocalStorage("ics-last-run", "");
-  const [cloudStatus, setCloudStatus] = useState("");
-
-  // Lataa pilviasetukset käynnistyksessä
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!hasFirebaseConfig()) return;
-        const cloud = await cloudLoadSettings();
-        if (cloud) {
-          setCfg((local) => ({ ...local, ...cloud }));
-          setCloudStatus("Pilviasetukset ladattu");
-        } else {
-          setCloudStatus("Pilviasetuksia ei löydy");
-        }
-      } catch (e) {
-        setCloudStatus("Pilviasetusten haku epäonnistui");
-        console.warn(e);
-      }
-    })();
-  }, []);
 
   async function pullIcsAll() {
     setErr("");
@@ -548,9 +457,6 @@ export default function App() {
       }
 
       setCfg(next);
-      try {
-        await cloudSaveSettings(next);
-      } catch {}
     } finally {
       setLoading(false);
     }
@@ -585,12 +491,7 @@ export default function App() {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-2xl md:text-3xl font-bold">Kodin infonäyttö</div>
-            <div className="text-sm text-zinc-400">
-              Sää • Lukujärjestykset (Wilma ICS) • Kello
-            </div>
-            {cloudStatus && (
-              <div className="text-xs text-zinc-500">{cloudStatus}</div>
-            )}
+            <div className="text-sm text-zinc-400">Sää • Lukujärjestykset (Wilma ICS) • Kello</div>
           </div>
           <div className="flex gap-2 items-center">
             <Button onClick={() => setEditing(true)}>Asetukset</Button>
@@ -620,12 +521,7 @@ export default function App() {
         </div>
       </div>
 
-      <SettingsDialog
-        open={editing}
-        onOpenChange={setEditing}
-        config={cfgN}
-        setConfig={setCfg}
-      />
+      <SettingsDialog open={editing} onOpenChange={setEditing} config={cfgN} setConfig={setCfg} />
       {loading && (
         <div className="fixed bottom-4 right-4 text-xs bg-zinc-800 border border-zinc-700 px-3 py-2 rounded-lg">
           Haetaan ICS-tietoja…
@@ -642,20 +538,13 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => setLocal(safe), [safe]);
 
-  const update = (patch) =>
-    setLocal((s) => normalizeGrid({ ...(s || {}), ...patch }));
-  const setKid = (idx, val) =>
-    update({ kids: (local.kids || []).map((k, i) => (i === idx ? val : k)) });
+  const update = (patch) => setLocal((s) => normalizeGrid({ ...(s || {}), ...patch }));
+  const setKid = (idx, val) => update({ kids: (local.kids || []).map((k, i) => (i === idx ? val : k)) });
 
   const save = async () => {
     const normalized = normalizeGrid(local);
     setConfig(normalized);
     setSaving(true);
-    try {
-      await cloudSaveSettings(normalized);
-    } catch (e) {
-      console.warn("Pilvitallennus epäonnistui:", e);
-    }
     setSaving(false);
     onOpenChange(false);
   };
@@ -666,11 +555,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
       <div className="grid gap-6">
         <div className="grid gap-2">
           <Label>Paikkakunta</Label>
-          <Input
-            value={local.city || ""}
-            onChange={(e) => update({ city: e.target.value })}
-            placeholder="esim. Raahe"
-          />
+          <Input value={local.city || ""} onChange={(e) => update({ city: e.target.value })} placeholder="esim. Raahe" />
         </div>
 
         <Separator />
@@ -679,11 +564,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
           <Label>Lapset</Label>
           <div className="grid md:grid-cols-3 gap-2">
             {(local.kids || []).map((k, i) => (
-              <Input
-                key={i}
-                value={k}
-                onChange={(e) => setKid(i, e.target.value)}
-              />
+              <Input key={i} value={k} onChange={(e) => setKid(i, e.target.value)} />
             ))}
           </div>
         </div>
@@ -698,9 +579,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
                 key={name}
                 placeholder={`${name} – https://...Wilma.ics`}
                 value={(local.ics && local.ics[name]) || ""}
-                onChange={(e) =>
-                  update({ ics: { ...(local.ics || {}), [name]: e.target.value } })
-                }
+                onChange={(e) => update({ ics: { ...(local.ics || {}), [name]: e.target.value } })}
               />
             ))}
           </div>
@@ -710,18 +589,12 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
             value={local.icsProxy || ""}
             onChange={(e) => update({ icsProxy: e.target.value })}
           />
-          <div className="text-xs text-zinc-400">
-            Jos CORS estää suorat pyynnöt, lisää tähän esim. Cloudflare Worker -proxy.
-          </div>
+          <div className="text-xs text-zinc-400">Ympäristömuuttujat (GitHub Variables) toimivat lähtöarvoina. Tässä tekemäsi muutokset tallentuvat vain paikallisesti tabletin selaimen muistiin.</div>
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button onClick={() => onOpenChange(false)} className="border">
-            Peruuta
-          </Button>
-          <Button onClick={save} className="border">
-            {saving ? "Tallennetaan…" : "Tallenna"}
-          </Button>
+          <Button onClick={() => onOpenChange(false)} className="border">Peruuta</Button>
+          <Button onClick={save} className="border">{saving ? "Tallennetaan…" : "Tallenna"}</Button>
         </div>
       </div>
     </Modal>
@@ -743,4 +616,3 @@ function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) 
     </div>
   );
 }
-```
