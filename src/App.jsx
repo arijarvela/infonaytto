@@ -64,12 +64,12 @@ async function cloudSaveSettings(cfg) {
 }
 
 /* UI */
-function Card({ className = "", children }) { return <div className={\`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 \${className}\`}>{children}</div>; }
-function CardHeader({ children, className = "" }) { return <div className={\`p-4 border-b border-zinc-700 \${className}\`}>{children}</div>; }
-function CardTitle({ children, className = "" }) { return <div className={\`font-semibold \${className}\`}>{children}</div>; }
-function CardContent({ children, className = "" }) { return <div className={\`p-4 \${className}\`}>{children}</div>; }
-function Button({ children, className = "", ...props }) { return <button className={\`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 \${className}\`} {...props}>{children}</button>; }
-function Input(props) { return <input {...props} className={\`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm \${props.className||""}\`} />; }
+function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}\`}>{children}</div>; }
+function CardHeader({ children, className = "" }) { return <div className={`p-4 border-b border-zinc-700 ${className}\`}>{children}</div>; }
+function CardTitle({ children, className = "" }) { return <div className={`font-semibold \${className}`}>{children}</div>; }
+function CardContent({ children, className = "" }) { return <div className={`p-4 \${className}`}>{children}</div>; }
+function Button({ children, className = "", ...props }) { return <button className={`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 \${className}`} {...props}>{children}</button>; }
+function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className||""}`} />; }
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
 
