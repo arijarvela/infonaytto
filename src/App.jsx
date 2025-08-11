@@ -114,7 +114,10 @@ function WeatherCard({ city }) {
 }
 
 /* ICS helpers */
-function unfoldIcsLines(text) { const lines = text.split(/\\r?\\n/); const out=[]; for (const l of lines){ if(l.startsWith(\" \")||l.startsWith(\"\\t\")) out[out.length-1]+=l.slice(1); else out.push(l);} return out; }
+function unfoldIcsLines(text) { const lines = (text || "").replace(/
+/g, "
+").split("
+"); const out=[]; for (const l of lines){ if(l.startsWith(" ")||l.startsWith("	")) out[out.length-1]=(out[out.length-1]||"")+l.slice(1); else out.push(l);} return out; } return out; }
 function parseIcsDate(v){ if(!v) return null; const z=v.endsWith(\"Z\"); if(v.length===8){const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8); return new Date(Date.UTC(y,m,d));} const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8),hh=+v.slice(9,11)||0,mm=+v.slice(11,13)||0,ss=+v.slice(13,15)||0; return z? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss); }
 function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=null; for(const ln of lines){ if(ln===\"BEGIN:VEVENT\") cur={}; else if(ln===\"END:VEVENT\"){ if(cur.DTSTART&&cur.DTEND){ ev.push({ summary:cur.SUMMARY||\"\", start:parseIcsDate(cur.DTSTART), end:parseIcsDate(cur.DTEND), location:cur.LOCATION||\"\" }); } cur=null; } else if(cur){ const i=ln.indexOf(\":\"); if(i>-1){ const k=ln.slice(0,i).split(\";\")[0]; const v=ln.slice(i+1); cur[k]=v; } } } return ev; }
 async function fetchICS(url, proxy){ const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url; const res = await fetch(u, {redirect:\"follow\"}); if(!res.ok){ throw new Error(`ICS ${res.status}`); } return await res.text(); }
