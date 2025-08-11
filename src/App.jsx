@@ -142,7 +142,7 @@ function WeatherCard({ city }) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
-          {data?.current?.icon && (<img alt={data?.current?.desc||""} className="h-12 w-12" src={\`https://openweathermap.org/img/wn/\${data.current.icon}@2x.png\`} />)}
+          {data?.current?.icon && (<img alt={data?.current?.desc||""} className="h-12 w-12" src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />)}
           <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
           <div className="text-sm text-zinc-300 capitalize">{data?.current?.desc || ""}</div>
           <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
@@ -152,7 +152,7 @@ function WeatherCard({ city }) {
             {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
-                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/\${h.icon}.png`} />}
+                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
               </div>
