@@ -85,9 +85,9 @@ function useLocalStorage(key, initialValue) {
 
 /* Weather */
 async function getCoordsFromCity(city) {
-  const url = \`https://api.openweathermap.org/geo/1.0/direct?q=\${encodeURIComponent(city)}&limit=1&appid=\${OWM_API_KEY}\`;
+  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${OWM_API_KEY}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(\`Geokoodaus \${res.status}\`);
+  if (!res.ok) throw new Error(`Geokoodaus ${res.status}`);
   const data = await res.json();
   if (!data.length) throw new Error("Paikkakuntaa ei löytynyt");
   return { lat: data[0].lat, lon: data[0].lon };
@@ -104,12 +104,12 @@ function useWeather({ city }) {
       setLoading(true); setError(null);
       try {
         const { lat, lon } = await getCoordsFromCity(city);
-        const currentUrl = \`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lon}&units=metric&lang=fi&appid=\${OWM_API_KEY}\`;
-        const forecastUrl = \`https://api.openweathermap.org/data/2.5/forecast?lat=\${lat}&lon=\${lon}&units=metric&lang=fi&appid=\${OWM_API_KEY}\`;
+        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
+        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
         const r1 = await fetch(currentUrl, { signal: ctrl.signal });
         const r2 = await fetch(forecastUrl, { signal: ctrl.signal });
-        if (!r1.ok) throw new Error(\`Current \${r1.status}\`);
-        if (!r2.ok) throw new Error(\`Forecast \${r2.status}\`);
+        if (!r1.ok) throw new Error(`Current ${r1.status}`);
+        if (!r2.ok) throw new Error(`Forecast ${r2.status}`);
         const cur = await r1.json(); const f = await r2.json();
         const now = new Date(); const end = new Date(now.getTime() + 48*60*60*1000);
         const hours = (f.list||[])
@@ -152,7 +152,7 @@ function WeatherCard({ city }) {
             {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
-                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={\`https://openweathermap.org/img/wn/\${h.icon}.png\`} />}
+                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/\${h.icon}.png`} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
               </div>
