@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
 
-/* -------- Firebase (compat-CDN, ei vaadi npm:ää) -------- */
+/* -------- Firebase (compat-CDN, dynamic load) -------- */
 const FB_CONFIG = {
   apiKey: import.meta.env.VITE_FB_API_KEY,
   authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN,
@@ -54,7 +54,7 @@ async function cloudSaveSettings(cfg) {
   if (!db) return false;
   const doc = {
     city: cfg.city || "",
-    kids: Array.isArray(cfg.kids) ? cfg.kids : ["Onerva", "Nanni", "Elmeri"],
+    kids: Array.isArray(cfg.kids) ? cfg.kids : ["Onerva","Nanni","Elmeri"],
     ics: cfg.ics || {},
     icsProxy: cfg.icsProxy || "",
     timetableSlots: cfg.timetableSlots || ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
@@ -63,17 +63,17 @@ async function cloudSaveSettings(cfg) {
   return true;
 }
 
-/* ---------------- UI peruskomponentit ---------------- */
-function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>{children}</div>; }
-function CardHeader({ children, className = "" }) { return <div className={`p-4 border-b border-zinc-700 ${className}`}>{children}</div>; }
-function CardTitle({ children, className = "" }) { return <div className={`font-semibold ${className}`}>{children}</div>; }
-function CardContent({ children, className = "" }) { return <div className={`p-4 ${className}`}>{children}</div>; }
-function Button({ children, className = "", ...props }) { return <button className={`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 ${className}`} {...props}>{children}</button>; }
-function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className || ""}`} />; }
+/* UI */
+function Card({ className = "", children }) { return <div className={\`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 \${className}\`}>{children}</div>; }
+function CardHeader({ children, className = "" }) { return <div className={\`p-4 border-b border-zinc-700 \${className}\`}>{children}</div>; }
+function CardTitle({ children, className = "" }) { return <div className={\`font-semibold \${className}\`}>{children}</div>; }
+function CardContent({ children, className = "" }) { return <div className={\`p-4 \${className}\`}>{children}</div>; }
+function Button({ children, className = "", ...props }) { return <button className={\`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 \${className}\`} {...props}>{children}</button>; }
+function Input(props) { return <input {...props} className={\`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm \${props.className||""}\`} />; }
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
 
-/* ---------------- LocalStorage-hook ---------------- */
+/* LocalStorage */
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initialValue; }
@@ -83,15 +83,16 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-/* ---------------- Sää ---------------- */
+/* Weather */
 async function getCoordsFromCity(city) {
-  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${OWM_API_KEY}`;
+  const url = \`https://api.openweathermap.org/geo/1.0/direct?q=\${encodeURIComponent(city)}&limit=1&appid=\${OWM_API_KEY}\`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Geokoodaus ${res.status}`);
+  if (!res.ok) throw new Error(\`Geokoodaus \${res.status}\`);
   const data = await res.json();
   if (!data.length) throw new Error("Paikkakuntaa ei löytynyt");
   return { lat: data[0].lat, lon: data[0].lon };
 }
+
 function useWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -103,31 +104,34 @@ function useWeather({ city }) {
       setLoading(true); setError(null);
       try {
         const { lat, lon } = await getCoordsFromCity(city);
-        const cu = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const fc = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const r1 = await fetch(cu, { signal: ctrl.signal });
-        const r2 = await fetch(fc, { signal: ctrl.signal });
-        if (!r1.ok) throw new Error(`Current ${r1.status}`);
-        if (!r2.ok) throw new Error(`Forecast ${r2.status}`);
-        const cur = await r1.json();
-        const f = await r2.json();
+        const currentUrl = \`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lon}&units=metric&lang=fi&appid=\${OWM_API_KEY}\`;
+        const forecastUrl = \`https://api.openweathermap.org/data/2.5/forecast?lat=\${lat}&lon=\${lon}&units=metric&lang=fi&appid=\${OWM_API_KEY}\`;
+        const r1 = await fetch(currentUrl, { signal: ctrl.signal });
+        const r2 = await fetch(forecastUrl, { signal: ctrl.signal });
+        if (!r1.ok) throw new Error(\`Current \${r1.status}\`);
+        if (!r2.ok) throw new Error(\`Forecast \${r2.status}\`);
+        const cur = await r1.json(); const f = await r2.json();
         const now = new Date(); const end = new Date(now.getTime() + 48*60*60*1000);
-        const hours = (f.list||[]).filter(x=>{const d=new Date(x.dt*1000);return d>=now&&d<=end;}).map(x=>({
-          time: new Date(x.dt*1000).toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit"}),
-          temp: Math.round(x.main?.temp ?? 0),
-          wind: Math.round(x.wind?.speed ?? 0),
-          icon: x.weather?.[0]?.icon, desc: x.weather?.[0]?.description
-        }));
-        setData({ current:{ temp:Math.round(cur.main?.temp??0), wind:Math.round(cur.wind?.speed??0), icon:cur.weather?.[0]?.icon, desc:cur.weather?.[0]?.description }, hours });
+        const hours = (f.list||[])
+          .filter(item => { const d = new Date(item.dt * 1000); return d >= now && d <= end; })
+          .map(row => ({
+            time: new Date(row.dt * 1000).toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
+            temp: Math.round(row.main?.temp ?? 0),
+            wind: Math.round(row.wind?.speed ?? 0),
+            icon: row.weather?.[0]?.icon,
+            desc: row.weather?.[0]?.description
+          }));
+        setData({ current: { temp: Math.round(cur.main?.temp ?? 0), wind: Math.round(cur.wind?.speed ?? 0), icon: cur.weather?.[0]?.icon, desc: cur.weather?.[0]?.description }, hours });
       } catch (e) { if (e.name !== "AbortError") setError(e.message || String(e)); }
       finally { setLoading(false); }
     };
     run();
-    const id = setInterval(run, 15*60*1000);
+    const id = setInterval(run, 15 * 60 * 1000);
     return () => { ctrl.abort(); clearInterval(id); };
   }, [city]);
   return { data, loading, error };
 }
+
 function WeatherCard({ city }) {
   const { data, loading, error } = useWeather({ city });
   return (
@@ -138,17 +142,17 @@ function WeatherCard({ city }) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
-          {data?.current?.icon && <img className="h-12 w-12" alt={data?.current?.desc||""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />}
+          {data?.current?.icon && (<img alt={data?.current?.desc||""} className="h-12 w-12" src={\`https://openweathermap.org/img/wn/\${data.current.icon}@2x.png\`} />)}
           <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
           <div className="text-sm text-zinc-300 capitalize">{data?.current?.desc || ""}</div>
           <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
         <div className="overflow-x-auto">
           <div className="grid grid-flow-col auto-cols-max gap-2">
-            {data?.hours?.map((h,i)=>(
+            {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
-                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />}
+                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={\`https://openweathermap.org/img/wn/\${h.icon}.png\`} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
               </div>
@@ -160,7 +164,7 @@ function WeatherCard({ city }) {
   );
 }
 
-/* ---------------- ICS-parsija ---------------- */
+/* ICS helpers */
 function unfoldIcsLines(text) {
   const raw = (text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = raw.split("\n");
@@ -175,12 +179,12 @@ function parseIcsDate(v) {
   if (!v) return null;
   const z = v.endsWith("Z");
   if (v.length === 8) {
-    const y = +v.slice(0,4), m = +v.slice(4,6)-1, d = +v.slice(6,8);
-    return new Date(Date.UTC(y,m,d));
+    const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+    return new Date(Date.UTC(y, m, d));
   }
-  const y = +v.slice(0,4), m = +v.slice(4,6)-1, d = +v.slice(6,8);
-  const hh = +v.slice(9,11)||0, mm = +v.slice(11,13)||0, ss = +v.slice(13,15)||0;
-  return z ? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss);
+  const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+  const hh = +v.slice(9, 11) || 0, mm = +v.slice(11, 13) || 0, ss = +v.slice(13, 15) || 0;
+  return z ? new Date(Date.UTC(y, m, d, hh, mm, ss)) : new Date(y, m, d, hh, mm, ss);
 }
 function parseICS(text) {
   const lines = unfoldIcsLines(text);
@@ -188,10 +192,10 @@ function parseICS(text) {
   for (const ln of lines) {
     if (ln === "BEGIN:VEVENT") cur = {};
     else if (ln === "END:VEVENT") {
-      if (cur.DTSTART && cur.DTEND) ev.push({ summary:cur.SUMMARY||"", start:parseIcsDate(cur.DTSTART), end:parseIcsDate(cur.DTEND), location:cur.LOCATION||"" });
+      if (cur.DTSTART && cur.DTEND) ev.push({ summary: cur.SUMMARY || "", start: parseIcsDate(cur.DTSTART), end: parseIcsDate(cur.DTEND), location: cur.LOCATION || "" });
       cur = null;
     } else if (cur) {
-      const i = ln.indexOf(":"); if (i > -1) { const k = ln.slice(0,i).split(";")[0]; const v = ln.slice(i+1); cur[k] = v; }
+      const i = ln.indexOf(":"); if (i > -1) { const k = ln.slice(0, i).split(";")[0]; const v = ln.slice(i + 1); cur[k] = v; }
     }
   }
   return ev;
@@ -203,10 +207,9 @@ async function fetchICS(url, proxy) {
   return await res.text();
 }
 
-/* ---------------- Lukujärjestys ---------------- */
+/* Timetable */
 const HOURS = ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"];
 const WEEKDAYS = ["maanantai","tiistai","keskiviikko","torstai","perjantai"];
-
 function normalizeGrid(cfg) {
   const next = { ...(cfg || {}) };
   if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
@@ -214,7 +217,7 @@ function normalizeGrid(cfg) {
   if (typeof next.timetable !== "object" || next.timetable === null) next.timetable = {};
   for (const d of WEEKDAYS) {
     if (!next.timetable[d]) next.timetable[d] = {};
-    for (let s=0; s<next.timetableSlots.length; s++) {
+    for (let s = 0; s < next.timetableSlots.length; s++) {
       const label = next.timetableSlots[s] || HOURS[s] || `${s}`;
       if (!Array.isArray(next.timetable[d][label])) next.timetable[d][label] = Array(next.kids.length).fill("");
       else if (next.timetable[d][label].length < next.kids.length) {
@@ -262,16 +265,14 @@ function TimetableCard({ cfg }) {
             <thead>
               <tr>
                 <th className="p-2 border border-zinc-700 w-28">Aika</th>
-                {cfgN.kids.map((k,i)=>(<th key={i} className="p-2 border border-zinc-700">{k}</th>))}
+                {cfgN.kids.map((k, i) => (<th key={i} className="p-2 border border-zinc-700">{k}</th>))}
               </tr>
             </thead>
             <tbody>
-              {slots.map((slot)=>(
+              {slots.map((slot) => (
                 <tr key={slot}>
                   <td className="p-2 border border-zinc-700 text-center">{slot}</td>
-                  {cfgN.kids.map((_,i)=>(
-                    <td key={i} className="p-1 border border-zinc-700">{table?.[slot]?.[i] || "—"}</td>
-                  ))}
+                  {cfgN.kids.map((_, i) => (<td key={i} className="p-1 border border-zinc-700">{table?.[slot]?.[i] || "—"}</td>))}
                 </tr>
               ))}
             </tbody>
@@ -282,16 +283,16 @@ function TimetableCard({ cfg }) {
   );
 }
 
-/* ---------------- Kello ---------------- */
+/* Clock */
 function LiveClock() {
   const [now, setNow] = useState(new Date());
-  useEffect(()=>{ const id=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(id); },[]);
-  const date = now.toLocaleDateString("fi-FI",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-  const time = now.toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-  return (<div className="text-center py-2"><div className="text-4xl font-bold">{time}</div><div className="text-sm text-zinc-300 capitalize">{date}</div></div>);
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const date = now.toLocaleDateString("fi-FI", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const time = now.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return (<div className="text-center py-2"><div className="text-4xl font-bold tracking-tight">{time}</div><div className="text-sm text-zinc-300 capitalize">{date}</div></div>);
 }
 
-/* ---------------- Defaults ---------------- */
+/* Defaults */
 const DEFAULT_CFG = {
   city: "Raahe",
   kids: ["Onerva","Nanni","Elmeri"],
@@ -301,7 +302,6 @@ const DEFAULT_CFG = {
   icsProxy: ""
 };
 
-/* ---------------- App ---------------- */
 export default function App() {
   const [cfg, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
   const [editing, setEditing] = useState(false);
@@ -310,7 +310,6 @@ export default function App() {
   const [lastIcsRun, setLastIcsRun] = useLocalStorage("ics-last-run", "");
   const [cloudStatus, setCloudStatus] = useState("");
 
-  // Lataa pilviasetukset käynnistyksessä (jos Firebase-konfigi on annettu)
   useEffect(() => {
     (async () => {
       try {
@@ -402,9 +401,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfgN.city} /></div>
-          <div className="md:col-span-1">
-            <Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card>
-          </div>
+          <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={cfgN} /></div>
         </div>
       </div>
@@ -415,16 +412,13 @@ export default function App() {
   );
 }
 
-/* ---------------- Asetukset ---------------- */
 function SettingsDialog({ open, onOpenChange, config, setConfig }) {
   const safe = useMemo(() => normalizeGrid(config || DEFAULT_CFG), [config]);
   const [local, setLocal] = useState(safe);
   const [saving, setSaving] = useState(false);
   useEffect(()=> setLocal(safe), [safe]);
-
   const update = (patch) => setLocal((s) => normalizeGrid({ ...(s||{}), ...patch }));
-  const setKid = (idx, val) => update({ kids: (local.kids || []).map((k,i)=> i===idx ? val : k) });
-
+  const setKid = (idx, val) => update({ kids: (local.kids || []).map((k, i) => (i === idx ? val : k)) });
   const save = async () => {
     const normalized = normalizeGrid(local);
     setConfig(normalized);
@@ -433,41 +427,35 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
     setSaving(false);
     onOpenChange(false);
   };
-
   if (!open) return null;
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Asetukset">
       <div className="grid gap-6">
         <div className="grid gap-2">
           <Label>Paikkakunta</Label>
-          <Input value={local.city || ""} onChange={(e)=>update({ city: e.target.value })} placeholder="esim. Raahe" />
+          <Input value={local.city || ""} onChange={(e) => update({ city: e.target.value })} placeholder="esim. Raahe" />
         </div>
         <Separator />
         <div className="grid gap-2">
           <Label>Lapset</Label>
           <div className="grid md:grid-cols-3 gap-2">
-            {(local.kids||[]).map((k,i)=>(<Input key={i} value={k} onChange={(e)=>setKid(i, e.target.value)} />))}
+            {(local.kids || []).map((k, i) => (<Input key={i} value={k} onChange={(e) => setKid(i, e.target.value)} />))}
           </div>
         </div>
         <Separator />
         <div className="grid gap-2">
           <Label>Wilma ICS -linkit</Label>
           <div className="grid md:grid-cols-3 gap-2">
-            {(local.kids||[]).map((name)=>(
-              <Input key={name} placeholder={`${name} – https://...Wilma.ics`}
-                     value={(local.ics && local.ics[name]) || ""}
-                     onChange={(e)=>update({ ics: { ...(local.ics||{}), [name]: e.target.value } })} />
+            {(local.kids || []).map((name) => (
+              <Input key={name} placeholder={`${name} – https://...Wilma.ics`} value={(local.ics && local.ics[name]) || ""} onChange={(e)=>update({ ics: { ...(local.ics || {}), [name]: e.target.value } })} />
             ))}
           </div>
           <Label>ICS-proxy (valinnainen, CORS)</Label>
-          <Input placeholder="esim. https://<nimi>.workers.dev/?url="
-                 value={local.icsProxy || ""}
-                 onChange={(e)=>update({ icsProxy: e.target.value })} />
+          <Input placeholder="esim. https://<nimi>.workers.dev/?url=" value={local.icsProxy || ""} onChange={(e)=>update({ icsProxy: e.target.value })} />
           <div className="text-xs text-zinc-400">Jos CORS estää suorat pyynnöt, lisää tähän esim. Cloudflare Worker -proxy.</div>
         </div>
-
         <div className="flex justify-end gap-2">
-          <Button onClick={()=>onOpenChange(false)} className="border">Peruuta</Button>
+          <Button onClick={() => onOpenChange(false)} className="border">Peruuta</Button>
           <Button onClick={save} className="border">{saving ? "Tallennetaan…" : "Tallenna"}</Button>
         </div>
       </div>
@@ -475,13 +463,12 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
   );
 }
 
-/* ---------------- Modal ---------------- */
 function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/60" onClick={()=>onOpenChange(false)} />
-      <div className={`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] ${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl`}>
+      <div className={\`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] \${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl\`}>
         <div className="p-4 border-b border-zinc-700 font-semibold">{title}</div>
         <div className="p-4">{children}</div>
       </div>
