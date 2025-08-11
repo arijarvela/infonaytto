@@ -127,35 +127,74 @@ function unfoldIcsLines(text) {
   return out;
 }
 
-function parseIcsDate(v){ if(!v) return null; const z=v.endsWith(\"Z\"); if(v.length===8){const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8); return new Date(Date.UTC(y,m,d));} const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8),hh=+v.slice(9,11)||0,mm=+v.slice(11,13)||0,ss=+v.slice(13,15)||0; return z? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss); }
-function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=null; for(const ln of lines){ if(ln===\"BEGIN:VEVENT\") cur={}; else if(ln===\"END:VEVENT\"){ if(cur.DTSTART&&cur.DTEND){ ev.push({ summary:cur.SUMMARY||\"\", start:parseIcsDate(cur.DTSTART), end:parseIcsDate(cur.DTEND), location:cur.LOCATION||\"\" }); } cur=null; } else if(cur){ const i=ln.indexOf(\":\"); if(i>-1){ const k=ln.slice(0,i).split(\";\")[0]; const v=ln.slice(i+1); cur[k]=v; } } } return ev; }
-async function fetchICS(url, proxy){ const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url; const res = await fetch(u, {redirect:\"follow\"}); if(!res.ok){ throw new Error(`ICS ${res.status}`); } return await res.text(); }
+function parseIcsDate(v) {
+  if (!v) return null;
+  const z = v.endsWith("Z");
+  if (v.length === 8) { // YYYYMMDD
+    const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+    return z ? new Date(Date.UTC(y, m, d)) : new Date(y, m, d);
+  }
+  // YYYYMMDDTHHMMSSZ
+  const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+  const H = +v.slice(9, 11), M = +v.slice(11, 13), S = +v.slice(13, 15);
+  return z ? new Date(Date.UTC(y, m, d, H, M, S)) : new Date(y, m, d, H, M, S);
+}
+
+function parseICS(text) {
+  const lines = unfoldIcsLines(text);
+  const ev = [];
+  let cur = null;
+  for (const ln of lines) {
+    if (ln === "BEGIN:VEVENT") cur = {};
+    else if (ln === "END:VEVENT") {
+      if (cur.DTSTART && cur.DTEND) {
+        ev.push({
+          start: parseIcsDate(cur.DTSTART),
+          end: parseIcsDate(cur.DTEND),
+          summary: cur.SUMMARY || ""
+        });
+      }
+      cur = null;
+    } else if (cur && ln.includes(":")) {
+      const [key, ...rest] = ln.split(":");
+      cur[key.split(";")[0]] = rest.join(":");
+    }
+  }
+  return ev;
+}
+
+async function fetchICS(url, proxy) {
+  const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url;
+  const res = await fetch(u, { redirect: "follow" });
+  if (!res.ok) throw new Error(`ICS ${res.status}`);
+  return await res.text();
+}
 
 /* Timetable */
-const HOURS = [\"8-9\",\"9-10\",\"10-11\",\"11-12\",\"12-13\",\"13-14\",\"14-15\",\"15-16\"];
-const WEEKDAYS = [\"maanantai\",\"tiistai\",\"keskiviikko\",\"torstai\",\"perjantai\"];
+const HOURS = ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"];
+const WEEKDAYS = ["maanantai","tiistai","keskiviikko","torstai","perjantai"];
 
 function normalizeGrid(cfg) {
   const next = { ...(cfg || {}) };
-  if (!Array.isArray(next.kids)) next.kids = [\"Onerva\",\"Nanni\",\"Elmeri\"];
+  if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
   if (!Array.isArray(next.timetableSlots)) next.timetableSlots = [...HOURS];
-  if (typeof next.timetable !== \"object\" || next.timetable === null) next.timetable = {};
+  if (typeof next.timetable !== "object" || next.timetable === null) next.timetable = {};
   for (const d of WEEKDAYS) {
     if (!next.timetable[d]) next.timetable[d] = {};
     for (let s = 0; s < next.timetableSlots.length; s++) {
       const slotLabel = next.timetableSlots[s] || HOURS[s] || `${s}`;
       if (!Array.isArray(next.timetable[d][slotLabel])) {
-        next.timetable[d][slotLabel] = Array(next.kids.length).fill(\"\");
+        next.timetable[d][slotLabel] = Array(next.kids.length).fill("");
       } else if (next.timetable[d][slotLabel].length < next.kids.length) {
         next.timetable[d][slotLabel] = [
           ...next.timetable[d][slotLabel],
-          ...Array(Math.max(0, next.kids.length - next.timetable[d][slotLabel].length)).fill(\"\")
+          ...Array(Math.max(0, next.kids.length - next.timetable[d][slotLabel].length)).fill("")
         ];
       }
     }
   }
   if (!next.ics) next.ics = {};
-  if (typeof next.icsProxy !== 'string') next.icsProxy = \"\";
+  if (typeof next.icsProxy !== 'string') next.icsProxy = "";
   return next;
 }
 
@@ -414,5 +453,3 @@ function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) 
     </div>
   );
 }
-
-
