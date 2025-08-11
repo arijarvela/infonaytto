@@ -468,7 +468,7 @@ function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) 
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/60" onClick={()=>onOpenChange(false)} />
-      <div className={\`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] \${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl\`}>
+      <div className={`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] ${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl`}>
         <div className="p-4 border-b border-zinc-700 font-semibold">{title}</div>
         <div className="p-4">{children}</div>
       </div>
