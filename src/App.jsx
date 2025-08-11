@@ -54,7 +54,7 @@ async function cloudSaveSettings(cfg) {
   if (!db) return false;
   const doc = {
     city: cfg.city || "",
-    kids: Array.isArray(cfg.kids) ? cfg.kids : ["Onerva","Nanni","Elmeri"],
+    kids: Array.isArray(cfg.kids) ? cfg.kids : ["Onerva", "Nanni", "Elmeri"],
     ics: cfg.ics || {},
     icsProxy: cfg.icsProxy || "",
     timetableSlots: cfg.timetableSlots || ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
@@ -63,17 +63,17 @@ async function cloudSaveSettings(cfg) {
   return true;
 }
 
-/* UI */
+/* ---------------- UI ---------------- */
 function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>{children}</div>; }
 function CardHeader({ children, className = "" }) { return <div className={`p-4 border-b border-zinc-700 ${className}`}>{children}</div>; }
 function CardTitle({ children, className = "" }) { return <div className={`font-semibold ${className}`}>{children}</div>; }
 function CardContent({ children, className = "" }) { return <div className={`p-4 ${className}`}>{children}</div>; }
 function Button({ children, className = "", ...props }) { return <button className={`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 ${className}`} {...props}>{children}</button>; }
-function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className||""}`} />; }
+function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className || ""}`} />; }
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
 
-/* LocalStorage */
+/* ---------------- LocalStorage ---------------- */
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initialValue; }
@@ -83,7 +83,7 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-/* Weather */
+/* ---------------- Sää ---------------- */
 async function getCoordsFromCity(city) {
   const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${OWM_API_KEY}`;
   const res = await fetch(url);
@@ -92,7 +92,6 @@ async function getCoordsFromCity(city) {
   if (!data.length) throw new Error("Paikkakuntaa ei löytynyt");
   return { lat: data[0].lat, lon: data[0].lon };
 }
-
 function useWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -104,24 +103,33 @@ function useWeather({ city }) {
       setLoading(true); setError(null);
       try {
         const { lat, lon } = await getCoordsFromCity(city);
-        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const r1 = await fetch(currentUrl, { signal: ctrl.signal });
-        const r2 = await fetch(forecastUrl, { signal: ctrl.signal });
+        const cu = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
+        const fc = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
+        const r1 = await fetch(cu, { signal: ctrl.signal });
+        const r2 = await fetch(fc, { signal: ctrl.signal });
         if (!r1.ok) throw new Error(`Current ${r1.status}`);
         if (!r2.ok) throw new Error(`Forecast ${r2.status}`);
-        const cur = await r1.json(); const f = await r2.json();
+        const cur = await r1.json();
+        const f = await r2.json();
         const now = new Date(); const end = new Date(now.getTime() + 48*60*60*1000);
-        const hours = (f.list||[])
-          .filter(item => { const d = new Date(item.dt * 1000); return d >= now && d <= end; })
-          .map(row => ({
-            time: new Date(row.dt * 1000).toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
-            temp: Math.round(row.main?.temp ?? 0),
-            wind: Math.round(row.wind?.speed ?? 0),
-            icon: row.weather?.[0]?.icon,
-            desc: row.weather?.[0]?.description
+        const hours = (f.list || [])
+          .filter(x => { const d = new Date(x.dt * 1000); return d >= now && d <= end; })
+          .map(x => ({
+            time: new Date(x.dt * 1000).toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
+            temp: Math.round(x.main?.temp ?? 0),
+            wind: Math.round(x.wind?.speed ?? 0),
+            icon: x.weather?.[0]?.icon,
+            desc: x.weather?.[0]?.description,
           }));
-        setData({ current: { temp: Math.round(cur.main?.temp ?? 0), wind: Math.round(cur.wind?.speed ?? 0), icon: cur.weather?.[0]?.icon, desc: cur.weather?.[0]?.description }, hours });
+        setData({
+          current: {
+            temp: Math.round(cur.main?.temp ?? 0),
+            wind: Math.round(cur.wind?.speed ?? 0),
+            icon: cur.weather?.[0]?.icon,
+            desc: cur.weather?.[0]?.description,
+          },
+          hours,
+        });
       } catch (e) { if (e.name !== "AbortError") setError(e.message || String(e)); }
       finally { setLoading(false); }
     };
@@ -131,7 +139,6 @@ function useWeather({ city }) {
   }, [city]);
   return { data, loading, error };
 }
-
 function WeatherCard({ city }) {
   const { data, loading, error } = useWeather({ city });
   return (
@@ -142,7 +149,9 @@ function WeatherCard({ city }) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
-          {data?.current?.icon && (<img alt={data?.current?.desc||""} className="h-12 w-12" src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />)}
+          {data?.current?.icon && (
+            <img className="h-12 w-12" alt={data?.current?.desc || ""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
+          )}
           <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
           <div className="text-sm text-zinc-300 capitalize">{data?.current?.desc || ""}</div>
           <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
@@ -152,7 +161,7 @@ function WeatherCard({ city }) {
             {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
-                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />}
+                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc || ""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
               </div>
@@ -164,13 +173,18 @@ function WeatherCard({ city }) {
   );
 }
 
-/* ICS helpers */
+/* ---------------- ICS ---------------- */
 function unfoldIcsLines(text) {
-  const raw = (text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = raw.split("\n");
+  const raw = (text || "").replace(/
+/g, "
+").replace(/
+/g, "
+");
+  const lines = raw.split("
+");
   const out = [];
   for (const l of lines) {
-    if ((l.startsWith(" ") || l.startsWith("\t")) && out.length) out[out.length - 1] += l.slice(1);
+    if ((l.startsWith(" ") || l.startsWith("	")) && out.length) out[out.length - 1] += l.slice(1);
     else out.push(l);
   }
   return out;
@@ -207,7 +221,7 @@ async function fetchICS(url, proxy) {
   return await res.text();
 }
 
-/* Timetable */
+/* ---------------- Lukujärjestys ---------------- */
 const HOURS = ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"];
 const WEEKDAYS = ["maanantai","tiistai","keskiviikko","torstai","perjantai"];
 function normalizeGrid(cfg) {
@@ -221,7 +235,10 @@ function normalizeGrid(cfg) {
       const label = next.timetableSlots[s] || HOURS[s] || `${s}`;
       if (!Array.isArray(next.timetable[d][label])) next.timetable[d][label] = Array(next.kids.length).fill("");
       else if (next.timetable[d][label].length < next.kids.length) {
-        next.timetable[d][label] = [...next.timetable[d][label], ...Array(next.kids.length - next.timetable[d][label].length).fill("")];
+        next.timetable[d][label] = [
+          ...next.timetable[d][label],
+          ...Array(next.kids.length - next.timetable[d][label].length).fill("")
+        ];
       }
     }
   }
@@ -234,16 +251,16 @@ function slotLabelForDateRange(slots, start) {
   const m = s.getMinutes();
   let h = s.getHours() + (m >= 30 ? 1 : 0);
   if (h < 0) h = 0; if (h > 23) h = 23;
-  const label = `${h}-${h+1}`;
+  const label = `${h}-${h + 1}`;
   if (slots.includes(label)) return label;
-  const alt1 = `${s.getHours()}-${s.getHours()+1}`;
-  const alt2 = `${s.getHours()+1}-${s.getHours()+2}`;
+  const alt1 = `${s.getHours()}-${s.getHours() + 1}`;
+  const alt2 = `${s.getHours() + 1}-${s.getHours() + 2}`;
   if (slots.includes(alt1)) return alt1;
   if (slots.includes(alt2)) return alt2;
   return null;
 }
-function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
-function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
+function startOfWeek(d) { const x = new Date(d); const day = (x.getDay() || 7) - 1; x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - day); return x; }
+function toWeekdayKey(d) { return WEEKDAYS[(d.getDay() || 7) - 1]; }
 
 function TimetableCard({ cfg }) {
   const now = new Date();
@@ -256,6 +273,7 @@ function TimetableCard({ cfg }) {
   const cfgN = useMemo(() => normalizeGrid(cfg), [cfg]);
   const slots = cfgN.timetableSlots;
   const table = cfgN.timetable[targetDay];
+
   return (
     <Card className="h-full">
       <CardHeader><CardTitle className="text-xl">Lukujärjestys ({label})</CardTitle></CardHeader>
@@ -272,7 +290,9 @@ function TimetableCard({ cfg }) {
               {slots.map((slot) => (
                 <tr key={slot}>
                   <td className="p-2 border border-zinc-700 text-center">{slot}</td>
-                  {cfgN.kids.map((_, i) => (<td key={i} className="p-1 border border-zinc-700">{table?.[slot]?.[i] || "—"}</td>))}
+                  {cfgN.kids.map((_, i) => (
+                    <td key={i} className="p-1 border border-zinc-700">{table?.[slot]?.[i] || "—"}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -283,7 +303,7 @@ function TimetableCard({ cfg }) {
   );
 }
 
-/* Clock */
+/* ---------------- Kello ---------------- */
 function LiveClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
@@ -292,16 +312,17 @@ function LiveClock() {
   return (<div className="text-center py-2"><div className="text-4xl font-bold tracking-tight">{time}</div><div className="text-sm text-zinc-300 capitalize">{date}</div></div>);
 }
 
-/* Defaults */
+/* ---------------- Defaults ---------------- */
 const DEFAULT_CFG = {
   city: "Raahe",
-  kids: ["Onerva","Nanni","Elmeri"],
+  kids: ["Onerva", "Nanni", "Elmeri"],
   timetableSlots: [...HOURS],
-  timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
-  ics: { Onerva:"", Nanni:"", Elmeri:"" },
-  icsProxy: ""
+  timetable: { maanantai: {}, tiistai: {}, keskiviikko: {}, torstai: {}, perjantai: {} },
+  ics: { Onerva: "", Nanni: "", Elmeri: "" },
+  icsProxy: "",
 };
 
+/* ---------------- App ---------------- */
 export default function App() {
   const [cfg, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
   const [editing, setEditing] = useState(false);
@@ -310,13 +331,18 @@ export default function App() {
   const [lastIcsRun, setLastIcsRun] = useLocalStorage("ics-last-run", "");
   const [cloudStatus, setCloudStatus] = useState("");
 
+  // Lataa pilviasetukset käynnistyksessä
   useEffect(() => {
     (async () => {
       try {
         if (!hasFirebaseConfig()) return;
         const cloud = await cloudLoadSettings();
-        if (cloud) setCfg((local) => ({ ...local, ...cloud }));
-        setCloudStatus(cloud ? "Pilviasetukset ladattu" : "Pilviasetuksia ei löydy");
+        if (cloud) {
+          setCfg((local) => ({ ...local, ...cloud }));
+          setCloudStatus("Pilviasetukset ladattu");
+        } else {
+          setCloudStatus("Pilviasetuksia ei löydy");
+        }
       } catch (e) {
         setCloudStatus("Pilviasetusten haku epäonnistui");
         console.warn(e);
@@ -324,31 +350,32 @@ export default function App() {
     })();
   }, []);
 
-  async function pullIcsAll(){
+  async function pullIcsAll() {
     setErr(""); setLoading(true);
-    try{
+    try {
       const weekStart = startOfWeek(new Date());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6); weekEnd.setHours(23,59,59,999);
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6); weekEnd.setHours(23, 59, 59, 999);
       const next = normalizeGrid(cfg);
       for (const d of WEEKDAYS) next.timetable[d] = {};
       const kids = next.kids; const slots = next.timetableSlots;
 
-      for (let kIdx=0; kIdx<kids.length; kIdx++){
-        const name = kids[kIdx]; const url = next.ics[name] || "";
+      for (let kIdx = 0; kIdx < kids.length; kIdx++) {
+        const name = kids[kIdx];
+        const url = next.ics[name] || "";
         if (!url) continue;
-        try{
+        try {
           const ics = await fetchICS(url, next.icsProxy);
           const events = parseICS(ics).filter(e => e.start >= weekStart && e.start <= weekEnd);
-          for (const e of events){
+          for (const e of events) {
             const wd = toWeekdayKey(e.start); if (!WEEKDAYS.includes(wd)) continue;
             const label = slotLabelForDateRange(slots, e.start); if (!label) continue;
             if (!next.timetable[wd][label]) next.timetable[wd][label] = Array(kids.length).fill("");
-            const durMin = Math.round((e.end - e.start)/60000);
+            const durMin = Math.round((e.end - e.start) / 60000);
             if (/^onerva$/i.test(name) && durMin >= 70) {
               next.timetable[wd][label][kIdx] = e.summary || "Tunti";
               const idx = slots.indexOf(label);
               if (idx >= 0 && idx + 1 < slots.length) {
-                const nextLabel = slots[idx+1];
+                const nextLabel = slots[idx + 1];
                 if (!next.timetable[wd][nextLabel]) next.timetable[wd][nextLabel] = Array(kids.length).fill("");
                 next.timetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
               }
@@ -361,16 +388,18 @@ export default function App() {
         }
       }
       setCfg(next);
+      try { await cloudSaveSettings(next); } catch {}
     } finally { setLoading(false); }
   }
 
+  // Automaattinen ICS-päivitys sunnuntaisin klo 12
   useEffect(() => {
     const tick = async () => {
       try {
         const now = new Date();
-        if (now.getDay() !== 0) return;
+        if (now.getDay() !== 0) return; // 0 = sunnuntai
         if (now.getHours() < 12) return;
-        const key = now.toISOString().slice(0,10);
+        const key = now.toISOString().slice(0, 10);
         if (lastIcsRun === key) return;
         await pullIcsAll();
         setLastIcsRun(key);
@@ -381,10 +410,10 @@ export default function App() {
     return () => clearInterval(id);
   }, [lastIcsRun, cfg.ics, cfg.icsProxy, cfg.kids, cfg.timetableSlots]);
 
-  const cfgN = useMemo(()=>normalizeGrid(cfg),[cfg]);
+  const cfgN = useMemo(() => normalizeGrid(cfg), [cfg]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{ fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
       <div className="max-w-6xl mx-auto grid gap-4">
         <div className="flex items-center justify-between">
           <div>
@@ -393,15 +422,21 @@ export default function App() {
             {cloudStatus && <div className="text-xs text-zinc-500">{cloudStatus}</div>}
           </div>
           <div className="flex gap-2 items-center">
-            <Button onClick={()=>setEditing(true)}>Asetukset</Button>
+            <Button onClick={() => setEditing(true)}>Asetukset</Button>
             <Button onClick={pullIcsAll}>Hae lukujärjestykset</Button>
           </div>
         </div>
+
         {err && <div className="text-sm text-red-400">{err}</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfgN.city} /></div>
-          <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-1">
+            <Card>
+              <CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader>
+              <CardContent><LiveClock /></CardContent>
+            </Card>
+          </div>
           <div className="md:col-span-4"><TimetableCard cfg={cfgN} /></div>
         </div>
       </div>
@@ -412,13 +447,16 @@ export default function App() {
   );
 }
 
+/* ---------------- Asetukset ---------------- */
 function SettingsDialog({ open, onOpenChange, config, setConfig }) {
   const safe = useMemo(() => normalizeGrid(config || DEFAULT_CFG), [config]);
   const [local, setLocal] = useState(safe);
   const [saving, setSaving] = useState(false);
-  useEffect(()=> setLocal(safe), [safe]);
-  const update = (patch) => setLocal((s) => normalizeGrid({ ...(s||{}), ...patch }));
+  useEffect(() => setLocal(safe), [safe]);
+
+  const update = (patch) => setLocal((s) => normalizeGrid({ ...(s || {}), ...patch }));
   const setKid = (idx, val) => update({ kids: (local.kids || []).map((k, i) => (i === idx ? val : k)) });
+
   const save = async () => {
     const normalized = normalizeGrid(local);
     setConfig(normalized);
@@ -427,6 +465,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
     setSaving(false);
     onOpenChange(false);
   };
+
   if (!open) return null;
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Asetukset">
@@ -435,25 +474,41 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
           <Label>Paikkakunta</Label>
           <Input value={local.city || ""} onChange={(e) => update({ city: e.target.value })} placeholder="esim. Raahe" />
         </div>
+
         <Separator />
+
         <div className="grid gap-2">
           <Label>Lapset</Label>
           <div className="grid md:grid-cols-3 gap-2">
-            {(local.kids || []).map((k, i) => (<Input key={i} value={k} onChange={(e) => setKid(i, e.target.value)} />))}
+            {(local.kids || []).map((k, i) => (
+              <Input key={i} value={k} onChange={(e) => setKid(i, e.target.value)} />
+            ))}
           </div>
         </div>
+
         <Separator />
+
         <div className="grid gap-2">
           <Label>Wilma ICS -linkit</Label>
           <div className="grid md:grid-cols-3 gap-2">
             {(local.kids || []).map((name) => (
-              <Input key={name} placeholder={`${name} – https://...Wilma.ics`} value={(local.ics && local.ics[name]) || ""} onChange={(e)=>update({ ics: { ...(local.ics || {}), [name]: e.target.value } })} />
+              <Input
+                key={name}
+                placeholder={`${name} – https://...Wilma.ics`}
+                value={(local.ics && local.ics[name]) || ""}
+                onChange={(e) => update({ ics: { ...(local.ics || {}), [name]: e.target.value } })}
+              />
             ))}
           </div>
           <Label>ICS-proxy (valinnainen, CORS)</Label>
-          <Input placeholder="esim. https://<nimi>.workers.dev/?url=" value={local.icsProxy || ""} onChange={(e)=>update({ icsProxy: e.target.value })} />
+          <Input
+            placeholder="esim. https://<nimi>.workers.dev/?url="
+            value={local.icsProxy || ""}
+            onChange={(e) => update({ icsProxy: e.target.value })}
+          />
           <div className="text-xs text-zinc-400">Jos CORS estää suorat pyynnöt, lisää tähän esim. Cloudflare Worker -proxy.</div>
         </div>
+
         <div className="flex justify-end gap-2">
           <Button onClick={() => onOpenChange(false)} className="border">Peruuta</Button>
           <Button onClick={save} className="border">{saving ? "Tallennetaan…" : "Tallenna"}</Button>
@@ -463,11 +518,12 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
   );
 }
 
+/* ---------------- Modal ---------------- */
 function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/60" onClick={()=>onOpenChange(false)} />
+      <div className="absolute inset-0 bg-black/60" onClick={() => onOpenChange(false)} />
       <div className={`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] ${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl`}>
         <div className="p-4 border-b border-zinc-700 font-semibold">{title}</div>
         <div className="p-4">{children}</div>
