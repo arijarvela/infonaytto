@@ -115,9 +115,17 @@ function WeatherCard({ city }) {
 
 /* ICS helpers */
 function unfoldIcsLines(text) {
-  const lines = (text || "")
-    .replace(/\r\n/g, "\n")
-    .split("\n");
+  const lines = (text || "").replace(/\r?\n/g, "\n").split("\n");
+  const out = [];
+  for (const l of lines) {
+    if (l.startsWith(" ") || l.startsWith("\t")) {
+      out[out.length - 1] = (out[out.length - 1] || "") + l.slice(1);
+    } else {
+      out.push(l);
+    }
+  }
+  return out;
+}
   const out = [];
   for (const l of lines) {
     if (l.startsWith(" ") || l.startsWith("\t")) {
@@ -415,3 +423,4 @@ function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-4xl" }) 
     </div>
   );
 }
+
