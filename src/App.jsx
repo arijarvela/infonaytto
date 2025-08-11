@@ -1,4 +1,3 @@
-\
 import React, { useEffect, useMemo, useState, createContext, useContext } from "react";
 
 const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
