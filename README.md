@@ -1,23 +1,16 @@
-# Kodin infonäyttö (kalenteriton versio)
+# infonaytto
 
 - Tumma teema
-- Sää (OWM): nykyinen + 48h tuntiennuste, sisältää tuulen (m/s)
-- Lukujärjestykset: näytetään vain **tänään**, ja klo 18 jälkeen **seuraava päivä**
-- Kello
-- Ei kalenterinäkymää
+- Sää (OpenWeatherMap): nykyinen + 48 h tuntiennuste, tuuli (m/s)
+- Lukujärjestys: näytetään tänään / klo 18 jälkeen seuraava päivä
+- Wilma-ICS: asetuksissa linkit per lapsi + valinnainen ICS-proxy
+- Automaattinen ICS-haku sunnuntaisin klo 12 jälkeen (kerran päivässä)
+- 45/75 min jaksojen pyöristys lähimpään tasatuntiin
+- GitHub Pages -workflow valmiina
 
-## Käyttöönotto GitHubin selaimesta
-
-1. Luo public-repo.
-2. Lataa tämän paketin tiedostot repoosi.
-3. Aseta **Settings → Pages**: Source = **GitHub Actions**.
-4. Lisää **Settings → Secrets → Actions**: `VITE_OWM_API_KEY` (OpenWeatherMap API-key).
-5. Muokkaa `vite.config.js` `base` vastaamaan reposi nimeä (esim. `/kotinaytto/`).
-6. Push → Actions rakentaa ja julkaisee.
-
-## Asetukset sovelluksessa
-- Paikkakunta
-- Lapset
-- Viikkolukujärjestys
-
-Tiedot tallentuvat selaimen `localStorageen`.
+## Käyttöönotto (GitHub selaimella)
+1. Luo public-repo **infonaytto**.
+2. Lataa tämän paketin sisältö repoosi.
+3. Settings → Pages: Source = **GitHub Actions**.
+4. Settings → Secrets → Actions: lisää `VITE_OWM_API_KEY` (OpenWeatherMap API key).
+5. Tee commit → Actions rakentaa ja julkaisee: `https://<käyttäjä>.github.io/infonaytto/`.
