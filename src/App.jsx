@@ -1,7 +1,7 @@
 app_jsx = """\
 import React, { useEffect, useMemo, useState } from "react";
 
-/* ---------------- OpenWeatherMap ---------------- */
+/* ---------------- OpenWeatherMap ------  ---------- */
 const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
 
 /* ---------------- Ympäristömuuttujat GitHubista (Vite) ---------------- */
