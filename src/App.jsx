@@ -187,11 +187,7 @@ function WeatherCard({ city }) {
 
 /* ---------------- ICS ---------------- */
 function unfoldIcsLines(text) {
-  const raw = (text || "").replace(/
-/g, "
-").replace(/
-/g, "
-");
+  190|   const raw = (text || "").replace(/\r\n|\r|\n/g, "\n");
   const lines = raw.split("
 ");
   const out = [];
