@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, createContext, useContext } from "react";
+import React, { useEffect, useState, createContext, useContext } from "react";
 
 const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
 
@@ -10,7 +10,6 @@ function CardContent({ children, className = "" }) { return <div className={`p-4
 function Button({ children, className = "", ...props }) { return <button className={`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 ${className}`} {...props}>{children}</button>; }
 function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className||""}`} />; }
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
-function ScrollArea({ children, className="" }) { return <div className={`overflow-auto ${className}`}>{children}</div>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
 
 /* Tabs */
@@ -19,20 +18,6 @@ function Tabs({ defaultValue, children, className="" }) { const [value, setValue
 function TabsList({ children, className="" }) { return <div className={`flex gap-2 ${className}`}>{children}</div>; }
 function TabsTrigger({ value, children, className="" }) { const ctx = useContext(TabsCtx); const active = ctx?.value === value; return <button onClick={()=>ctx.setValue(value)} className={`px-3 py-1.5 rounded-lg border border-zinc-600 text-sm ${active?"bg-zinc-700":"bg-zinc-800 hover:bg-zinc-700"} ${className}`}>{children}</button>; }
 function TabsContent({ value, children }) { const ctx = useContext(TabsCtx); return ctx?.value === value ? <div className="mt-2">{children}</div> : null; }
-
-/* Modal */
-function Modal({ open, onOpenChange, title, children, maxWidth = "max-w-5xl" }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/60" onClick={()=>onOpenChange(false)} />
-      <div className={`absolute left-1/2 top-10 -translate-x-1/2 w-[95vw] ${maxWidth} rounded-2xl bg-zinc-900 text-zinc-100 shadow-xl`}>
-        <div className="p-4 border-b border-zinc-700 font-semibold">{title}</div>
-        <div className="p-4">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 /* LocalStorage */
 function useLocalStorage(key, initialValue) {
@@ -161,7 +146,6 @@ function normalizeGrid(cfg) {
   return next;
 }
 
-// 45/75 min tunnit: pyöristä lähimpään tasatuntiin
 function slotLabelForDateRange(slots, start, end){
   if(!(start instanceof Date)) start = new Date(start);
   if(!(end instanceof Date)) end = new Date(end);
@@ -234,7 +218,7 @@ function LiveClock() {
 const DEFAULT_CFG = {
   city: "Raahe",
   kids: ["Onerva","Nanni","Elmeri"],
-  timetableSlots: [...HOURS],
+  timetableSlots: ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
   timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
   ics: { Onerva: "", Nanni: "", Elmeri: "" },
   icsProxy: ""
@@ -257,6 +241,7 @@ export default function App() {
       const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6); weekEnd.setHours(23,59,59,999);
       const next = { ...cfg, timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} } };
       const kidNames = cfg.kids;
+      const slots = cfg.timetableSlots;
       for(let kIdx=0;kIdx<kidNames.length;kIdx++){
         const name = kidNames[kIdx];
         const url = cfg.ics?.[name];
@@ -267,10 +252,25 @@ export default function App() {
           for(const e of events){
             const wd = toWeekdayKey(e.start);
             if(!WEEKDAYS.includes(wd)) continue;
-            const label = slotLabelForDateRange(cfg.timetableSlots, e.start, e.end);
+            const label = slotLabelForDateRange(slots, e.start, e.end);
             if(!label) continue;
-            if(!next.timetable[wd][label]) next.timetable[wd][label] = Array(kidNames.length).fill("");
-            next.timetable[wd][label][kIdx] = e.summary || "Tunti";
+
+            if (!next.timetable[wd][label]) next.timetable[wd][label] = Array(kidNames.length).fill("");
+
+            const durMin = Math.round((e.end - e.start) / 60000);
+            if (/^onerva$/i.test(name) && durMin >= 70) {
+              // kirjoita nykyiseen slottiin
+              next.timetable[wd][label][kIdx] = e.summary || "Tunti";
+              // kirjoita myös seuraavaan peräkkäiseen slottiin
+              const idx = slots.indexOf(label);
+              if (idx >= 0 && idx + 1 < slots.length) {
+                const nextLabel = slots[idx + 1];
+                if (!next.timetable[wd][nextLabel]) next.timetable[wd][nextLabel] = Array(kidNames.length).fill("");
+                next.timetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
+              }
+            } else {
+              next.timetable[wd][label][kIdx] = e.summary || "Tunti";
+            }
           }
         }catch(inner){
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
