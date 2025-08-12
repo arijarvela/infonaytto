@@ -1,0 +1,57 @@
+name: Build and Deploy (Vite → GitHub Pages)
+
+on:
+  push:
+    branches: ["main"]   # vaihda jos default-branch != main
+  workflow_dispatch:      # voit käynnistää käsin Actions-välilehdeltä
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Build
+        run: npm run build
+        env:
+          # Vite lukee vain VITE_-prefixin
+          VITE_CITY: ${{ vars.VITE_CITY }}
+          VITE_ICS_ONERVA: ${{ vars.VITE_ICS_ONERVA }}
+          VITE_ICS_NANNI: ${{ vars.VITE_ICS_NANNI }}
+          VITE_ICS_ELMERI: ${{ vars.VITE_ICS_ELMERI }}
+          VITE_ICS_PROXY: ${{ vars.VITE_ICS_PROXY }}
+          VITE_OWM_API_KEY: ${{ vars.VITE_OWM_API_KEY }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
