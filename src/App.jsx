@@ -13,12 +13,14 @@ const ENV_CFG = {
   icsProxy: import.meta.env.VITE_ICS_PROXY || "",
 };
 
+/* Minimal UI helpers */
 function Card({ children }) { return <div className="card">{children}</div>; }
 function CardHeader({ children }) { return <div className="card-header">{children}</div>; }
 function CardTitle({ children }) { return <div className="card-title">{children}</div>; }
 function CardContent({ children }) { return <div className="card-content">{children}</div>; }
 function Button(props){ return <button className="btn" {...props} />; }
 
+/* LocalStorage */
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initialValue; }
@@ -81,12 +83,12 @@ function WeatherCard({ city }) {
         <div className="muted" style={{ fontSize: "12px" }}>{error || (loading ? "Päivitetään…" : "")}</div>
       </CardHeader>
       <CardContent>
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
           {data?.current?.icon && (
-            <img style="width:48px;height:48px" alt={data?.current?.desc || ""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
+            <img style={{ width: 48, height: 48 }} alt={data?.current?.desc || ""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
           )}
-          <div style="font-weight:800;letter-spacing:-0.01em;font-size:clamp(40px,6vw,72px)">{data?.current?.temp ?? "–"}°C</div>
-          <div className="muted" style="text-transform:capitalize">{data?.current?.desc || ""}</div>
+          <div style={{ fontWeight: 800, letterSpacing: "-0.01em", fontSize: "clamp(40px,6vw,72px)" }}>{data?.current?.temp ?? "–"}°C</div>
+          <div className="muted" style={{ textTransform: "capitalize" }}>{data?.current?.desc || ""}</div>
           <div className="muted">Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
 
@@ -109,7 +111,7 @@ function WeatherCard({ city }) {
   );
 }
 
-/* ICS + lukujärjestys — sama kuin aiemmin (tiivistetty) */
+/* ICS + lukujärjestys (tiivistetty) */
 function unfoldIcsLines(text) {
   const raw = (text || "").replace(/\\r\\n/g,"\\n").replace(/\\r/g,"\\n");
   const lines = raw.split("\\n"); const out = [];
@@ -141,19 +143,19 @@ function TimetableCard({ cfg }){
       <CardHeader><CardTitle>Lukujärjestys ({label})</CardTitle></CardHeader>
       <CardContent>
         <div style={{ overflow: "auto" }}>
-          <table>
+          <table style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
               <tr>
-                <th style={{ width: "7rem" }}>Aika</th>
-                {cfgN.kids.map((k,i)=>(<th key={i}>{k}</th>))}
+                <th style={{ width: "7rem", border: "1px solid var(--border)", padding: 8 }}>Aika</th>
+                {cfgN.kids.map((k,i)=>(<th key={i} style={{ border: "1px solid var(--border)", padding: 8 }}>{k}</th>))}
               </tr>
             </thead>
             <tbody>
               {slots.map(slot=>(
                 <tr key={slot}>
-                  <td style={{ textAlign:"center" }}>{slot}</td>
+                  <td style={{ textAlign:"center", border: "1px solid var(--border)", padding: 8 }}>{slot}</td>
                   {cfgN.kids.map((_,i)=>(
-                    <td key={i}>{table?.[slot]?.[i] || "—"}</td>
+                    <td key={i} style={{ border: "1px solid var(--border)", padding: 8 }}>{table?.[slot]?.[i] || "—"}</td>
                   ))}
                 </tr>
               ))}
@@ -198,15 +200,10 @@ export default function App(){
       </div>
 
       <div className="grid-main">
-        {/* Vasemmalla sää isompana */}
         <div><WeatherCard city={cfg.city} /></div>
-
-        {/* Oikealla kello (desktop), mobiilissa alle */}
         <div>
           <Card><CardHeader><CardTitle>Kello</CardTitle></CardHeader><CardContent><LiveClock/></CardContent></Card>
         </div>
-
-        {/* Lukujärjestys koko rivin leveydelle desktopissa */}
         <div className="full-row"><TimetableCard cfg={cfg} /></div>
       </div>
     </div>
