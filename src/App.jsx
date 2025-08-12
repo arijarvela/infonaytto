@@ -137,71 +137,12 @@ function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=
 async function fetchICS(url, proxy){ const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url; const res = await fetch(u, {redirect:"follow"}); if(!res.ok){ throw new Error(`ICS ${res.status}`); } return await res.text(); }
 
 /* Timetable */
-const HOURS = ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"];
 const WEEKDAYS = ["maanantai","tiistai","keskiviikko","torstai","perjantai"];
+const TIMELINE_START_HOUR = 8;
+const TIMELINE_END_HOUR = 17;
+const PIXELS_PER_HOUR = 80;
 
-function normalizeGrid(cfg) {
-  const next = { ...cfg };
-  if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
-  if (!Array.isArray(next.timetableSlots)) next.timetableSlots = [...HOURS];
-  if (typeof next.timetable !== "object") next.timetable = {};
-  if (typeof next.manualOverrides !== "object") next.manualOverrides = {};
-
-  for (const d of WEEKDAYS) {
-    if (!next.timetable[d]) next.timetable[d] = {};
-    if (!next.manualOverrides[d]) next.manualOverrides[d] = {};
-    for (let s = 0; s < next.timetableSlots.length; s++) {
-      const slotLabel = next.timetableSlots[s] || HOURS[s] || `${s}`;
-      
-      if (!Array.isArray(next.timetable[d][slotLabel])) {
-        next.timetable[d][slotLabel] = Array(next.kids.length).fill("");
-      } else if (next.timetable[d][slotLabel].length < next.kids.length) {
-        next.timetable[d][slotLabel].push(...Array(Math.max(0, next.kids.length - next.timetable[d][slotLabel].length)).fill(""));
-      }
-      
-      if (!Array.isArray(next.manualOverrides[d][slotLabel])) {
-        next.manualOverrides[d][slotLabel] = Array(next.kids.length).fill("");
-      } else if (next.manualOverrides[d][slotLabel].length < next.kids.length) {
-        next.manualOverrides[d][slotLabel].push(...Array(Math.max(0, next.kids.length - next.manualOverrides[d][slotLabel].length)).fill(""));
-      }
-    }
-  }
-  return next;
-}
-
-// FIX: New robust logic to find all covered slots for an event.
-function getCoveredSlots(event, slots) {
-  const covered = [];
-  if (!event.start || !event.end) return covered;
-
-  const eventStart = event.start.getTime();
-  const eventEnd = event.end.getTime();
-
-  for (const slot of slots) {
-    const [startHourStr, endHourStr] = slot.split('-');
-    const startHour = parseInt(startHourStr, 10);
-    const endHour = parseInt(endHourStr, 10);
-
-    const slotStartDate = new Date(event.start);
-    slotStartDate.setHours(startHour, 0, 0, 0);
-    
-    const slotEndDate = new Date(event.start);
-    slotEndDate.setHours(endHour, 0, 0, 0);
-
-    const slotStart = slotStartDate.getTime();
-    const slotEnd = slotEndDate.getTime();
-
-    // Check for overlap: (EventStart < SlotEnd) and (EventEnd > SlotStart)
-    if (eventStart < slotEnd && eventEnd > slotStart) {
-      covered.push(slot);
-    }
-  }
-  return covered;
-}
-
-function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
-function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
-
+// New graphical timetable component
 function TimetableCard({ cfg }) {
   const now = new Date();
   const hour = now.getHours();
@@ -212,9 +153,41 @@ function TimetableCard({ cfg }) {
   const label = hour >= 18 ? `Seuraava päivä – ${targetDay}` : `Tänään – ${targetDay}`;
   
   const cfgN = normalizeGrid(cfg);
-  const slots = cfgN.timetableSlots;
-  const table = cfgN.timetable[targetDay];
-  const overrides = cfgN.manualOverrides[targetDay];
+  const kidColors = ["bg-sky-800/50 border-sky-500", "bg-rose-800/50 border-rose-500", "bg-emerald-800/50 border-emerald-500"];
+
+  // Combine ICS events and manual overrides for rendering
+  const getEventsForDay = (day, kidName, kidIdx) => {
+    const icsEvents = cfgN.timetable[day]?.[kidName] || [];
+    const manualOverrides = cfgN.manualOverrides[day] || {};
+    
+    let finalEvents = [...icsEvents];
+    
+    Object.entries(manualOverrides).forEach(([slot, kidsEntries]) => {
+      if (kidsEntries[kidIdx]) {
+        const [startHour] = slot.split('-').map(Number);
+        const slotStart = new Date();
+        slotStart.setHours(startHour, 0, 0, 0);
+        const slotEnd = new Date();
+        slotEnd.setHours(startHour + 1, 0, 0, 0);
+
+        // Remove ICS events that overlap with this manual override
+        finalEvents = finalEvents.filter(event => {
+          const eventStart = event.start.getTime();
+          const eventEnd = event.end.getTime();
+          return eventEnd <= slotStart.getTime() || eventStart >= slotEnd.getTime();
+        });
+        
+        // Add manual override as an event
+        finalEvents.push({
+          start: slotStart,
+          end: slotEnd,
+          summary: kidsEntries[kidIdx],
+          isOverride: true,
+        });
+      }
+    });
+    return finalEvents;
+  };
 
   return (
     <Card className="h-full">
@@ -222,33 +195,56 @@ function TimetableCard({ cfg }) {
         <CardTitle className="text-xl">Lukujärjestys ({label})</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="overflow-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="p-2 border border-zinc-700 w-28">Aika</th>
-                {cfgN.kids.map((k, i) => (<th key={i} className="p-2 border border-zinc-700">{k}</th>))}
-              </tr>
-            </thead>
-            <tbody>
-              {slots.map((slot) => (
-                <tr key={slot}>
-                  <td className="p-2 border border-zinc-700 text-center">{slot}</td>
-                  {cfgN.kids.map((_, kidIdx) => {
-                    const overrideEntry = overrides?.[slot]?.[kidIdx];
-                    const icsEntry = table?.[slot]?.[kidIdx];
-                    const displayValue = overrideEntry || icsEntry || "—";
-                    return (<td key={kidIdx} className="p-1 border border-zinc-700">{displayValue}</td>);
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex">
+          {/* Time axis */}
+          <div className="w-16 text-right pr-2 text-xs text-zinc-400">
+            {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => {
+              const hour = TIMELINE_START_HOUR + i;
+              return (
+                <div key={hour} style={{ height: `${PIXELS_PER_HOUR}px` }} className="relative">
+                  <span className="absolute -top-1.5">{hour}:00</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Timetable grid */}
+          <div className="flex-1 grid grid-cols-3 gap-1">
+            {cfgN.kids.map((kidName, kidIdx) => (
+              <div key={kidName} className="relative border-l border-zinc-700">
+                {/* Background hour lines */}
+                {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
+                  <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
+                ))}
+                
+                {/* Events */}
+                {getEventsForDay(targetDay, kidName, kidIdx).map((event, eventIdx) => {
+                  const minutesFromStart = (event.start.getHours() - TIMELINE_START_HOUR) * 60 + event.start.getMinutes();
+                  const durationMinutes = (event.end.getTime() - event.start.getTime()) / 60000;
+
+                  const top = (minutesFromStart / 60) * PIXELS_PER_HOUR;
+                  const height = (durationMinutes / 60) * PIXELS_PER_HOUR;
+
+                  return (
+                    <div
+                      key={eventIdx}
+                      className={`absolute w-full p-2 rounded-lg text-xs leading-tight shadow-md ${event.isOverride ? 'bg-zinc-600/80 border-zinc-400' : kidColors[kidIdx % kidColors.length]}`}
+                      style={{ top: `${top}px`, height: `${height}px`, border: '1px solid' }}
+                    >
+                      <p className="font-bold text-white">{event.summary}</p>
+                      <p className="text-zinc-200">{`${event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${event.end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 }
+
 
 /* Clock */
 function LiveClock() {
@@ -264,11 +260,41 @@ const DEFAULT_CFG = {
   city: "Raahe",
   kids: ["Onerva","Nanni","Elmeri"],
   timetableSlots: ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
-  timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
+  timetable: {}, // Now stores events directly: { [day]: { [kidName]: [event, ...] } }
   manualOverrides: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
   ics: { Onerva: "", Nanni: "", Elmeri: "" },
   icsProxy: ""
 };
+
+// Updated normalization logic for the new timetable structure
+function normalizeGrid(cfg) {
+  const next = { ...cfg };
+  if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
+  if (typeof next.timetable !== "object") next.timetable = {};
+  if (typeof next.manualOverrides !== "object") next.manualOverrides = {};
+
+  for (const d of WEEKDAYS) {
+    if (!next.timetable[d]) next.timetable[d] = {};
+    if (!next.manualOverrides[d]) next.manualOverrides[d] = {};
+    for (const k of next.kids) {
+      if (!Array.isArray(next.timetable[d][k])) {
+        next.timetable[d][k] = [];
+      }
+    }
+     for (let s = 0; s < (next.timetableSlots || []).length; s++) {
+      const slotLabel = (next.timetableSlots || HOURS)[s] || `${s}`;
+      if (!Array.isArray(next.manualOverrides[d][slotLabel])) {
+        next.manualOverrides[d][slotLabel] = Array(next.kids.length).fill("");
+      }
+    }
+  }
+  return next;
+}
+
+
+function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
+function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
+
 
 export default function App() {
   const [cfgFromStorage, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
@@ -291,14 +317,21 @@ export default function App() {
 
   useEffect(()=>setLocalCfg(cfg),[JSON.stringify(cfg)]);
 
+  // Rewritten logic to populate the new graphical-friendly timetable structure
   async function pullIcsAll(){
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
       const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6); weekEnd.setHours(23,59,59,999);
-      const newTimetable = { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} };
+      const newTimetable = {};
       const kidNames = cfg.kids;
-      const slots = cfg.timetableSlots;
+
+      for(const day of WEEKDAYS) {
+        newTimetable[day] = {};
+        for(const name of kidNames) {
+          newTimetable[day][name] = [];
+        }
+      }
 
       for(let kIdx=0;kIdx<kidNames.length;kIdx++){
         const name = kidNames[kIdx];
@@ -307,19 +340,11 @@ export default function App() {
         try{
           const ics = await fetchICS(url, cfg.icsProxy);
           const events = parseICS(ics).filter(e=> e.start>=weekStart && e.start<=weekEnd);
+          
           for(const e of events){
             const wd = toWeekdayKey(e.start);
-            if(!WEEKDAYS.includes(wd)) continue;
-            
-            // Use the new robust function to get all covered slots
-            const coveredSlots = getCoveredSlots(e, slots);
-            
-            // Populate all covered slots with the event summary
-            for (const label of coveredSlots) {
-              if (!newTimetable[wd][label]) {
-                newTimetable[wd][label] = Array(kidNames.length).fill("");
-              }
-              newTimetable[wd][label][kIdx] = e.summary || "Tunti";
+            if(newTimetable[wd]) {
+               newTimetable[wd][name].push(e);
             }
           }
         }catch(inner){
@@ -346,7 +371,7 @@ export default function App() {
     tick();
     const id = setInterval(tick, 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [lastIcsRun, cfg.ics, cfg.icsProxy, cfg.kids, cfg.timetableSlots]);
+  }, [lastIcsRun, JSON.stringify(cfg.ics), cfg.icsProxy, JSON.stringify(cfg.kids)]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
@@ -383,9 +408,9 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
   };
 
   const updateOverride = (day, slot, kidIdx, value) => {
-    const newOverrides = JSON.parse(JSON.stringify(localCfg.manualOverrides));
+    const newOverrides = JSON.parse(JSON.stringify(localCfg.manualOverrides || {}));
     if (!newOverrides[day]) newOverrides[day] = {};
-    if (!newOverrides[day][slot]) newOverrides[day][slot] = [];
+    if (!newOverrides[day][slot]) newOverrides[day][slot] = Array(localCfg.kids.length).fill("");
     newOverrides[day][slot][kidIdx] = value;
     update({ manualOverrides: newOverrides });
   };
@@ -449,7 +474,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
                       </tr>
                     </thead>
                     <tbody>
-                      {localCfg.timetableSlots.map((slot) => (
+                      {(localCfg.timetableSlots || HOURS).map((slot) => (
                         <tr key={slot}>
                           <td className="p-2 border border-zinc-700 text-center">{slot}</td>
                           {localCfg.kids.map((_, kidIdx) => (
