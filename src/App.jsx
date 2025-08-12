@@ -13,51 +13,11 @@ const ENV_CFG = {
   icsProxy: import.meta.env.VITE_ICS_PROXY || "",
 };
 
-function Card({ className = "", children, style }) {
-  return (
-    <div
-      className={"rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 " + className}
-      style={{ borderColor: "#3f3f46", backgroundColor: "#27272a", color: "#e4e4e7", ...style }}
-    >
-      {children}
-    </div>
-  );
-}
-function CardHeader({ children, className = "", style }) {
-  return (
-    <div className={"p-4 border-b border-zinc-700 " + className} style={{ borderColor: "#3f3f46", ...style }}>
-      {children}
-    </div>
-  );
-}
-function CardTitle({ children, className = "" }) {
-  return <div className={"card-title " + className}>{children}</div>;
-}
-function CardContent({ children, className = "", style }) {
-  return <div className={"p-4 " + className} style={style}>{children}</div>;
-}
-function Button({ children, className = "", ...props }) {
-  return (
-    <button
-      className={"px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 " + className}
-      style={{ borderColor: "#52525b", backgroundColor: "#27272a" }}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-function Input(props) {
-  return (
-    <input
-      {...props}
-      className={"w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm " + (props.className || "")}
-      style={{ borderColor: "#52525b", backgroundColor: "#18181b", color: "#fafafa" }}
-    />
-  );
-}
-function Label({ children }) { return <label className="text-sm font-medium" style={{ color: "#e4e4e7" }}>{children}</label>; }
-function Separator() { return <div className="h-px my-2" style={{ backgroundColor: "#3f3f46" }} />; }
+function Card({ children }) { return <div className="card">{children}</div>; }
+function CardHeader({ children }) { return <div className="card-header">{children}</div>; }
+function CardTitle({ children }) { return <div className="card-title">{children}</div>; }
+function CardContent({ children }) { return <div className="card-content">{children}</div>; }
+function Button(props){ return <button className="btn" {...props} />; }
 
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
@@ -115,47 +75,31 @@ function useWeather({ city }) {
 function WeatherCard({ city }) {
   const { data, loading, error } = useWeather({ city });
   return (
-    <Card style={{ width: "100%", boxSizing: "border-box" }}>
-      <CardHeader className="flex items-center justify-between">
+    <Card>
+      <CardHeader>
         <CardTitle>Sää – {city || "(ei asetettu)"}</CardTitle>
-        <div className="text-sm" style={{ color: "#fca5a5" }}>{error || (loading ? "Päivitetään…" : "")}</div>
+        <div className="muted" style={{ fontSize: "12px" }}>{error || (loading ? "Päivitetään…" : "")}</div>
       </CardHeader>
-      <CardContent style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
-        <div className="flex items-center gap-4 mb-4">
+      <CardContent>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
           {data?.current?.icon && (
-            <img className="h-12 w-12" alt={data?.current?.desc || ""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
+            <img style="width:48px;height:48px" alt={data?.current?.desc || ""} src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
           )}
-          <div className="text-5xl" style={{ fontWeight: 800, letterSpacing: "-0.01em" }}>{data?.current?.temp ?? "–"}°C</div>
-          <div className="text-sm" style={{ color: "#d4d4d8", textTransform: "capitalize" }}>{data?.current?.desc || ""}</div>
-          <div className="text-sm" style={{ color: "#d4d4d8" }}>Tuuli {data?.current?.wind ?? "–"} m/s</div>
+          <div style="font-weight:800;letter-spacing:-0.01em;font-size:clamp(40px,6vw,72px)">{data?.current?.temp ?? "–"}°C</div>
+          <div className="muted" style="text-transform:capitalize">{data?.current?.desc || ""}</div>
+          <div className="muted">Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
 
-        {/* Vaakavieritys vain kortissa, ei koko sivulla */}
-        <div
-          role="region"
-          aria-label="Tuntiennuste (48 h)"
-          style={{
-            width: "100%",
-            maxWidth: "100%",
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
-            paddingBottom: 4,
-            boxSizing: "border-box"
-          }}
-        >
-          <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+        <div className="hscroll" aria-label="Tuntiennuste (48 h)">
+          <div className="hrow">
             {data?.hours?.map((h, i) => (
-              <div
-                key={i}
-                className="rounded-xl p-3 text-center"
-                style={{ flex: "0 0 auto", width: 96, border: "1px solid #3f3f46" }}
-              >
-                <div className="text-xs" style={{ color: "#d4d4d8" }}>{h.time}</div>
+              <div key={i} className="hcell">
+                <div className="muted" style={{ fontSize: "12px" }}>{h.time}</div>
                 {h.icon && (
-                  <img className="mx-auto" style={{ width: 32, height: 32 }} alt={h.desc || ""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />
+                  <img alt={h.desc || ""} style={{ width: 28, height: 28 }} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />
                 )}
-                <div className="text-sm" style={{ fontWeight: 700 }}>{h.temp}°C</div>
-                <div className="text-xs" style={{ color: "#a1a1aa" }}>{h.wind} m/s</div>
+                <div style={{ fontWeight: 700 }}>{h.temp}°C</div>
+                <div className="muted" style={{ fontSize: "12px" }}>{h.wind} m/s</div>
               </div>
             ))}
           </div>
@@ -165,102 +109,51 @@ function WeatherCard({ city }) {
   );
 }
 
-/* ICS + lukujärjestys pidetty ennallaan */
+/* ICS + lukujärjestys — sama kuin aiemmin (tiivistetty) */
 function unfoldIcsLines(text) {
   const raw = (text || "").replace(/\\r\\n/g,"\\n").replace(/\\r/g,"\\n");
   const lines = raw.split("\\n"); const out = [];
   for (const l of lines) { if ((l.startsWith(" ") || l.startsWith("\\t")) && out.length) out[out.length-1]+=l.slice(1); else out.push(l); }
   return out;
 }
-function parseIcsDate(v) {
-  if (!v) return null;
-  const z=v.endsWith("Z");
-  if (v.length===8){ const y=+v.slice(0,4), m=+v.slice(4,6)-1, d=+v.slice(6,8); return new Date(Date.UTC(y,m,d)); }
-  const y=+v.slice(0,4), m=+v.slice(4,6)-1, d=+v.slice(6,8);
-  const hh=+v.slice(9,11)||0, mm=+v.slice(11,13)||0, ss=+v.slice(13,15)||0;
-  return z ? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss);
-}
-function parseICS(text) {
-  const lines = unfoldIcsLines(text);
-  const ev=[]; let cur=null;
-  for (const ln of lines) {
-    if (ln==="BEGIN:VEVENT") cur={};
-    else if (ln==="END:VEVENT") {
-      if (cur.DTSTART && cur.DTEND) ev.push({ summary: cur.SUMMARY||"", start: parseIcsDate(cur.DTSTART), end: parseIcsDate(cur.DTEND), location: cur.LOCATION||"" });
-      cur=null;
-    } else if (cur) {
-      const i=ln.indexOf(":"); if (i>-1){ const k=ln.slice(0,i).split(";")[0]; const v=ln.slice(i+1); cur[k]=v; }
-    }
-  }
-  return ev;
-}
-async function fetchICS(url, proxy) {
-  const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url;
-  const res = await fetch(u, { redirect:"follow" });
-  if (!res.ok) throw new Error(`ICS ${res.status}`);
-  return await res.text();
-}
+function parseIcsDate(v){ if(!v) return null; const z=v.endsWith("Z"); if(v.length===8){const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8);return new Date(Date.UTC(y,m,d));} const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8); const hh=+v.slice(9,11)||0,mm=+v.slice(11,13)||0,ss=+v.slice(13,15)||0; return z?new Date(Date.UTC(y,m,d,hh,mm,ss)):new Date(y,m,d,hh,mm,ss);}
+function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=null; for(const ln of lines){ if(ln==="BEGIN:VEVENT") cur={}; else if(ln==="END:VEVENT"){ if(cur.DTSTART&&cur.DTEND) ev.push({summary:cur.SUMMARY||"",start:parseIcsDate(cur.DTSTART),end:parseIcsDate(cur.DTEND),location:cur.LOCATION||""}); cur=null; } else if(cur){ const i=ln.indexOf(":"); if(i>-1){ const k=ln.slice(0,i).split(";")[0]; const v=ln.slice(i+1); cur[k]=v; } } } return ev; }
+async function fetchICS(url, proxy){ const u=proxy?`${proxy}${encodeURIComponent(url)}`:url; const res=await fetch(u,{redirect:"follow"}); if(!res.ok) throw new Error(`ICS ${res.status}`); return await res.text(); }
 
 const HOURS=["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"];
 const WEEKDAYS=["maanantai","tiistai","keskiviikko","torstai","perjantai"];
-function normalizeGrid(cfg){
-  const next={ ...(cfg||{}) };
-  if(!Array.isArray(next.kids)) next.kids=["Onerva","Nanni","Elmeri"];
-  if(!Array.isArray(next.timetableSlots)) next.timetableSlots=[...HOURS];
-  if(typeof next.timetable!=="object" || next.timetable===null) next.timetable={};
-  for(const d of WEEKDAYS){
-    if(!next.timetable[d]) next.timetable[d]={};
-    for(let s=0;s<next.timetableSlots.length;s++){
-      const label=next.timetableSlots[s] || HOURS[s] || String(s);
-      if(!Array.isArray(next.timetable[d][label])) next.timetable[d][label]=Array(next.kids.length).fill("");
-      else if(next.timetable[d][label].length<next.kids.length){
-        next.timetable[d][label]=[...next.timetable[d][label], ...Array(next.kids.length-next.timetable[d][label].length).fill("")];
-      }
-    }
-  }
-  if(!next.ics) next.ics={};
-  if(typeof next.icsProxy!=="string") next.icsProxy="";
-  return next;
-}
-function slotLabelForDateRange(slots,start){
-  const s=start instanceof Date?start:new Date(start);
-  const m=s.getMinutes(); let h=s.getHours()+(m>=30?1:0);
-  if(h<0)h=0; if(h>23)h=23;
-  const label=`${h}-${h+1}`;
-  if(slots.includes(label)) return label;
-  const alt1=`${s.getHours()}-${s.getHours()+1}`; const alt2=`${s.getHours()+1}-${s.getHours()+2}`;
-  if(slots.includes(alt1)) return alt1; if(slots.includes(alt2)) return alt2; return null;
-}
+function normalizeGrid(cfg){ const next={...(cfg||{})}; if(!Array.isArray(next.kids)) next.kids=["Onerva","Nanni","Elmeri"]; if(!Array.isArray(next.timetableSlots)) next.timetableSlots=[...HOURS]; if(typeof next.timetable!=="object"||next.timetable===null) next.timetable={}; for(const d of WEEKDAYS){ if(!next.timetable[d]) next.timetable[d]={}; for(let s=0;s<next.timetableSlots.length;s++){ const label=next.timetableSlots[s]||HOURS[s]||String(s); if(!Array.isArray(next.timetable[d][label])) next.timetable[d][label]=Array(next.kids.length).fill(""); else if(next.timetable[d][label].length<next.kids.length){ next.timetable[d][label]=[...next.timetable[d][label],...Array(next.kids.length-next.timetable[d][label].length).fill("")]; } } } if(!next.ics) next.ics={}; if(typeof next.icsProxy!=="string") next.icsProxy=""; return next; }
+function slotLabelForDateRange(slots,start){ const s=start instanceof Date?start:new Date(start); const m=s.getMinutes(); let h=s.getHours()+(m>=30?1:0); if(h<0)h=0; if(h>23)h=23; const label=`${h}-${h+1}`; if(slots.includes(label)) return label; const alt1=`${s.getHours()}-${s.getHours()+1}`; const alt2=`${s.getHours()+1}-${s.getHours()+2}`; if(slots.includes(alt1)) return alt1; if(slots.includes(alt2)) return alt2; return null; }
 function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
 
 function TimetableCard({ cfg }){
   const now=new Date(); const hour=now.getHours(); const jsDay=now.getDay();
-  const todayIdxBase = (jsDay===0 || jsDay===6) ? 0 : (jsDay-1);
+  const todayIdxBase = (jsDay===0||jsDay===6)?0:(jsDay-1);
   const targetIdx = hour>=18 ? (todayIdxBase+1)%5 : todayIdxBase;
   const targetDay=WEEKDAYS[targetIdx];
-  const label= hour>=18 ? `Seuraava päivä – ${targetDay}` : `Tänään – ${targetDay}`;
+  const label = hour>=18 ? `Seuraava päivä – ${targetDay}` : `Tänään – ${targetDay}`;
   const cfgN=useMemo(()=>normalizeGrid(cfg),[cfg]);
   const slots=cfgN.timetableSlots; const table=cfgN.timetable[targetDay];
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader><CardTitle>Lukujärjestys ({label})</CardTitle></CardHeader>
       <CardContent>
-        <div style={{ overflow:"auto" }}>
-          <table className="w-full text-sm" style={{ borderCollapse:"collapse" }}>
+        <div style={{ overflow: "auto" }}>
+          <table>
             <thead>
               <tr>
-                <th className="p-2" style={{ border:"1px solid #3f3f46", width:"7rem" }}>Aika</th>
-                {cfgN.kids.map((k,i)=>(<th key={i} className="p-2" style={{ border:"1px solid #3f3f46" }}>{k}</th>))}
+                <th style={{ width: "7rem" }}>Aika</th>
+                {cfgN.kids.map((k,i)=>(<th key={i}>{k}</th>))}
               </tr>
             </thead>
             <tbody>
               {slots.map(slot=>(
                 <tr key={slot}>
-                  <td className="p-2" style={{ border:"1px solid #3f3f46", textAlign:"center" }}>{slot}</td>
+                  <td style={{ textAlign:"center" }}>{slot}</td>
                   {cfgN.kids.map((_,i)=>(
-                    <td key={i} className="p-1" style={{ border:"1px solid #3f3f46" }}>{table?.[slot]?.[i] || "—"}</td>
+                    <td key={i}>{table?.[slot]?.[i] || "—"}</td>
                   ))}
                 </tr>
               ))}
@@ -277,7 +170,10 @@ function LiveClock(){
   useEffect(()=>{ const id=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(id); },[]);
   const date=now.toLocaleDateString("fi-FI",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   const time=now.toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-  return (<div className="text-center py-2"><div className="text-4xl" style={{ fontWeight: 800 }}>{time}</div><div className="text-sm" style={{color:"#d4d4d8", textTransform:"capitalize"}}>{date}</div></div>);
+  return (<div style={{ textAlign:"center", padding:"8px 0" }}>
+    <div style={{ fontWeight: 800, fontSize: "clamp(28px, 4vw, 48px)" }}>{time}</div>
+    <div className="muted" style={{ textTransform:"capitalize" }}>{date}</div>
+  </div>);
 }
 
 const DEFAULT_CFG = {
@@ -290,29 +186,28 @@ const DEFAULT_CFG = {
 };
 
 export default function App(){
-  const [cfg,setCfg]=useLocalStorage("home-dashboard-config", DEFAULT_CFG);
-  const [editing,setEditing]=useState(false);
+  const [cfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
 
   return (
-    <div className="min-h-screen" style={{ background:"#0a0a0b", color:"#e4e4e7", padding:"16px" }}>
-      <div style={{ maxWidth:"1200px", margin:"0 auto", display:"grid", gap:"16px" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div>
-            <div className="title-xl">Kodin infonäyttö</div>
-            <div className="subtitle">Sää • Lukujärjestykset (Wilma ICS) • Kello</div>
-          </div>
-          <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-            <Button onClick={()=>setEditing(true)}>Asetukset</Button>
-          </div>
+    <div className="container">
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 12 }}>
+        <div>
+          <div className="title-xl">Kodin infonäyttö</div>
+          <div className="subtitle">Sää • Lukujärjestykset (Wilma ICS) • Kello</div>
+        </div>
+      </div>
+
+      <div className="grid-main">
+        {/* Vasemmalla sää isompana */}
+        <div><WeatherCard city={cfg.city} /></div>
+
+        {/* Oikealla kello (desktop), mobiilissa alle */}
+        <div>
+          <Card><CardHeader><CardTitle>Kello</CardTitle></CardHeader><CardContent><LiveClock/></CardContent></Card>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
-          <div><WeatherCard city={cfg.city} /></div>
-          <div>
-            <Card><CardHeader><CardTitle>Kello</CardTitle></CardHeader><CardContent><LiveClock/></CardContent></Card>
-          </div>
-          <div><TimetableCard cfg={cfg} /></div>
-        </div>
+        {/* Lukujärjestys koko rivin leveydelle desktopissa */}
+        <div className="full-row"><TimetableCard cfg={cfg} /></div>
       </div>
     </div>
   );
