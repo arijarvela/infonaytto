@@ -112,18 +112,42 @@ function WeatherCard({ city }) {
           <div className="text-sm" style={{ color:"#d4d4d8", textTransform:"capitalize" }}>{data?.current?.desc || ""}</div>
           <div className="text-sm" style={{ color:"#d4d4d8" }}>Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
-        <div style={{ overflowX:"auto" }}>
-          <div style={{ display:"grid", gridAutoFlow:"column", gridAutoColumns:"max-content", gap:"8px" }}>
-            {data?.hours?.map((h,i)=>(
-              <div key={i} className="rounded-xl p-3 text-center" style={{ border:"1px solid #3f3f46", width:"96px" }}>
-                <div className="text-xs" style={{ color:"#d4d4d8" }}>{h.time}</div>
-                {h.icon && (<img className="mx-auto" style={{ width:"32px", height:"32px" }} alt={h.desc || ""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />)}
-                <div className="text-sm font-semibold">{h.temp}°C</div>
-                <div className="text-xs" style={{ color:"#a1a1aa" }}>{h.wind} m/s</div>
-              </div>
-            ))}
-          </div>
-        </div>
+<div
+  role="region"
+  aria-label="Tuntiennuste (48 h)"
+  style={{
+    maxWidth: "100%",
+    overflowX: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingBottom: 4
+  }}
+>
+  <div style={{ display: "flex", gap: 8 }}>
+    {data?.hours?.map((h, i) => (
+      <div
+        key={i}
+        className="rounded-xl p-3 text-center"
+        style={{
+          flex: "0 0 auto",   // estää venymisen
+          width: 96,          // selkeä korttileveys
+          border: "1px solid #3f3f46"
+        }}
+      >
+        <div className="text-xs" style={{ color: "#d4d4d8" }}>{h.time}</div>
+        {h.icon && (
+          <img
+            className="mx-auto"
+            style={{ width: 32, height: 32 }}
+            alt={h.desc || ""}
+            src={`https://openweathermap.org/img/wn/${h.icon}.png`}
+          />
+        )}
+        <div className="text-sm font-semibold">{h.temp}°C</div>
+        <div className="text-xs" style={{ color: "#a1a1aa" }}>{h.wind} m/s</div>
+      </div>
+    ))}
+  </div>
+</div>
       </CardContent>
     </Card>
   );
