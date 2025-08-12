@@ -8,9 +8,25 @@ function CardHeader({ children, className="" }) { return <div className={`p-4 bo
 function CardTitle({ children, className = "" }) { return <div className={`font-semibold ${className}`}>{children}</div>; }
 function CardContent({ children, className = "" }) { return <div className={`p-4 ${className}`}>{children}</div>; }
 function Button({ children, className = "", ...props }) { return <button className={`px-3 py-2 rounded-xl border border-zinc-600 text-sm bg-zinc-800 hover:bg-zinc-700 ${className}`} {...props}>{children}</button>; }
-function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm ${props.className||""}`} />; }
+function Input(props) { return <input {...props} className={`w-full rounded-lg border border-zinc-600 bg-zinc-900 text-zinc-100 px-3 py-2 text-sm disabled:bg-zinc-800 disabled:text-zinc-400 ${props.className||""}`} />; }
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
+
+/* Modal (FIX: Added missing component) */
+function Modal({ open, onOpenChange, title, children }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => onOpenChange(false)}>
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-lg w-full max-w-2xl m-4" onClick={(e) => e.stopPropagation()}>
+        <CardHeader className="flex justify-between items-center">
+          <CardTitle className="text-xl">{title}</CardTitle>
+          <button onClick={() => onOpenChange(false)} className="text-zinc-400 hover:text-zinc-100 text-2xl leading-none">&times;</button>
+        </CardHeader>
+        <CardContent>{children}</CardContent>
+      </div>
+    </div>
+  );
+}
 
 /* Tabs */
 const TabsCtx = createContext(null);
@@ -225,14 +241,26 @@ const DEFAULT_CFG = {
 };
 
 export default function App() {
-  const [cfg, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
+  const [cfgFromStorage, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
+  
+  // FEATURE: Override ICS links with values from environment variables if they exist.
+  const cfg = {
+    ...cfgFromStorage,
+    ics: {
+      ...cfgFromStorage.ics,
+      ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
+      ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
+      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
+    }
+  };
+
   const [editing, setEditing] = useState(false);
   const [localCfg, setLocalCfg] = useState(cfg);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [lastIcsRun, setLastIcsRun] = useLocalStorage("ics-last-run", "");
 
-  useEffect(()=>setLocalCfg(cfg),[cfg]);
+  useEffect(()=>setLocalCfg(cfg),[JSON.stringify(cfg)]);
 
   async function pullIcsAll(){
     setErr(""); setLoading(true);
@@ -258,18 +286,17 @@ export default function App() {
             if (!next.timetable[wd][label]) next.timetable[wd][label] = Array(kidNames.length).fill("");
 
             const durMin = Math.round((e.end - e.start) / 60000);
+
+            // REFACTOR: Simplified logic for handling lessons.
+            next.timetable[wd][label][kIdx] = e.summary || "Tunti";
+
             if (/^onerva$/i.test(name) && durMin >= 70) {
-              // kirjoita nykyiseen slottiin
-              next.timetable[wd][label][kIdx] = e.summary || "Tunti";
-              // kirjoita myös seuraavaan peräkkäiseen slottiin
               const idx = slots.indexOf(label);
               if (idx >= 0 && idx + 1 < slots.length) {
                 const nextLabel = slots[idx + 1];
                 if (!next.timetable[wd][nextLabel]) next.timetable[wd][nextLabel] = Array(kidNames.length).fill("");
                 next.timetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
               }
-            } else {
-              next.timetable[wd][label][kIdx] = e.summary || "Tunti";
             }
           }
         }catch(inner){
@@ -330,6 +357,13 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
   const update = (patch) => setLocalCfg((s) => normalizeGrid({ ...s, ...patch }));
   const save = () => { setConfig(normalizeGrid(localCfg)); onOpenChange(false); };
   const setKid = (idx, val) => update({ kids: localCfg.kids.map((k, i) => (i === idx ? val : k)) });
+  
+  // FEATURE: Check which ICS links are from environment variables
+  const icsFromEnv = {
+    Onerva: import.meta.env.VITE_ICS_ONERVA,
+    Nanni: import.meta.env.VITE_ICS_NANNI,
+    Elmeri: import.meta.env.VITE_ICS_ELMERI,
+  };
 
   if (!open) return null;
   return (
@@ -350,9 +384,19 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
         <div className="grid gap-2">
           <Label>Wilma ICS -linkit</Label>
           <div className="grid md:grid-cols-3 gap-2">
-            {localCfg.kids.map((name) => (
-              <Input key={name} placeholder={`${name} – https://...Wilma.ics`} value={localCfg.ics?.[name] || ""} onChange={(e)=>update({ ics: { ...localCfg.ics, [name]: e.target.value } })} />
-            ))}
+            {localCfg.kids.map((name) => {
+              const isFromEnv = !!icsFromEnv[name];
+              return (
+                <Input 
+                  key={name}
+                  placeholder={`${name} – https://...Wilma.ics`}
+                  value={localCfg.ics?.[name] || ""}
+                  onChange={(e)=>update({ ics: { ...localCfg.ics, [name]: e.target.value } })}
+                  disabled={isFromEnv}
+                  title={isFromEnv ? "Tämä arvo on asetettu GitHub-muuttujien kautta, eikä sitä voi muokata tässä." : ""}
+                />
+              );
+            })}
           </div>
           <Label>ICS-proxy (valinnainen, CORS)</Label>
           <Input placeholder="esim. https://<nimi>.workers.dev/?url=" value={localCfg.icsProxy||""} onChange={(e)=>update({ icsProxy: e.target.value })} />
