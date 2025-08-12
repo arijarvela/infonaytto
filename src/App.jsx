@@ -169,16 +169,34 @@ function normalizeGrid(cfg) {
   return next;
 }
 
-// FIX: Changed function to not round the start time.
-function slotLabelForDateRange(slots, start, end) {
-  if (!(start instanceof Date)) start = new Date(start);
-  const startHour = start.getHours();
-  const label = `${startHour}-${startHour + 1}`;
-  
-  if (slots.includes(label)) {
-    return label;
+// FIX: New robust logic to find all covered slots for an event.
+function getCoveredSlots(event, slots) {
+  const covered = [];
+  if (!event.start || !event.end) return covered;
+
+  const eventStart = event.start.getTime();
+  const eventEnd = event.end.getTime();
+
+  for (const slot of slots) {
+    const [startHourStr, endHourStr] = slot.split('-');
+    const startHour = parseInt(startHourStr, 10);
+    const endHour = parseInt(endHourStr, 10);
+
+    const slotStartDate = new Date(event.start);
+    slotStartDate.setHours(startHour, 0, 0, 0);
+    
+    const slotEndDate = new Date(event.start);
+    slotEndDate.setHours(endHour, 0, 0, 0);
+
+    const slotStart = slotStartDate.getTime();
+    const slotEnd = slotEndDate.getTime();
+
+    // Check for overlap: (EventStart < SlotEnd) and (EventEnd > SlotStart)
+    if (eventStart < slotEnd && eventEnd > slotStart) {
+      covered.push(slot);
+    }
   }
-  return null;
+  return covered;
 }
 
 function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
@@ -261,7 +279,7 @@ export default function App() {
       ...cfgFromStorage.ics,
       ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
       ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
-      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELmeri }),
+      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
     }
   };
 
@@ -292,22 +310,16 @@ export default function App() {
           for(const e of events){
             const wd = toWeekdayKey(e.start);
             if(!WEEKDAYS.includes(wd)) continue;
-            const label = slotLabelForDateRange(slots, e.start, e.end);
-            if(!label) continue;
-
-            if (!newTimetable[wd][label]) newTimetable[wd][label] = Array(kidNames.length).fill("");
-
-            const durMin = Math.round((e.end - e.start) / 60000);
             
-            newTimetable[wd][label][kIdx] = e.summary || "Tunti";
-
-            if (/^onerva$/i.test(name) && durMin >= 70) {
-              const idx = slots.indexOf(label);
-              if (idx >= 0 && idx + 1 < slots.length) {
-                const nextLabel = slots[idx + 1];
-                if (!newTimetable[wd][nextLabel]) newTimetable[wd][nextLabel] = Array(kidNames.length).fill("");
-                newTimetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
+            // Use the new robust function to get all covered slots
+            const coveredSlots = getCoveredSlots(e, slots);
+            
+            // Populate all covered slots with the event summary
+            for (const label of coveredSlots) {
+              if (!newTimetable[wd][label]) {
+                newTimetable[wd][label] = Array(kidNames.length).fill("");
               }
+              newTimetable[wd][label][kIdx] = e.summary || "Tunti";
             }
           }
         }catch(inner){
