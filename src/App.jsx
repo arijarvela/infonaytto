@@ -32,7 +32,7 @@ function Modal({ open, onOpenChange, title, children }) {
 const TabsCtx = createContext(null);
 function Tabs({ defaultValue, children, className="" }) { const [value, setValue] = useState(defaultValue); return <TabsCtx.Provider value={{ value, setValue }}><div className={className}>{children}</div></TabsCtx.Provider>; }
 function TabsList({ children, className="" }) { return <div className={`flex gap-2 ${className}`}>{children}</div>; }
-function TabsTrigger({ value, children, className="" }) { const ctx = useContext(TabsCtx); const active = ctx?.value === value; return <button onClick={()=>ctx.setValue(value)} className={`px-3 py-1.5 rounded-lg border border-zinc-600 text-sm ${active?"bg-zinc-700":"bg-zinc-800 hover:bg-zinc-700"} ${className}`}>{children}</button>; }
+function TabsTrigger({ value, children, className="" }) { const ctx = useContext(TabsCtx); const active = ctx?.value === value; return <button onClick={()=>ctx.setValue(value)} className={`px-3 py-1.5 rounded-lg border border-zinc-600 text-sm capitalize ${active?"bg-zinc-700":"bg-zinc-800 hover:bg-zinc-700"} ${className}`}>{children}</button>; }
 function TabsContent({ value, children }) { const ctx = useContext(TabsCtx); return ctx?.value === value ? <div className="mt-2">{children}</div> : null; }
 
 /* LocalStorage */
@@ -145,17 +145,24 @@ function normalizeGrid(cfg) {
   if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
   if (!Array.isArray(next.timetableSlots)) next.timetableSlots = [...HOURS];
   if (typeof next.timetable !== "object") next.timetable = {};
+  if (typeof next.manualOverrides !== "object") next.manualOverrides = {};
+
   for (const d of WEEKDAYS) {
     if (!next.timetable[d]) next.timetable[d] = {};
+    if (!next.manualOverrides[d]) next.manualOverrides[d] = {};
     for (let s = 0; s < next.timetableSlots.length; s++) {
       const slotLabel = next.timetableSlots[s] || HOURS[s] || `${s}`;
+      
       if (!Array.isArray(next.timetable[d][slotLabel])) {
         next.timetable[d][slotLabel] = Array(next.kids.length).fill("");
       } else if (next.timetable[d][slotLabel].length < next.kids.length) {
-        next.timetable[d][slotLabel] = [
-          ...next.timetable[d][slotLabel],
-          ...Array(Math.max(0, next.kids.length - next.timetable[d][slotLabel].length)).fill("")
-        ];
+        next.timetable[d][slotLabel].push(...Array(Math.max(0, next.kids.length - next.timetable[d][slotLabel].length)).fill(""));
+      }
+      
+      if (!Array.isArray(next.manualOverrides[d][slotLabel])) {
+        next.manualOverrides[d][slotLabel] = Array(next.kids.length).fill("");
+      } else if (next.manualOverrides[d][slotLabel].length < next.kids.length) {
+        next.manualOverrides[d][slotLabel].push(...Array(Math.max(0, next.kids.length - next.manualOverrides[d][slotLabel].length)).fill(""));
       }
     }
   }
@@ -188,9 +195,11 @@ function TimetableCard({ cfg }) {
   const targetIdx = hour >= 18 ? (todayIdxBase + 1) % 5 : todayIdxBase;
   const targetDay = WEEKDAYS[targetIdx];
   const label = hour >= 18 ? `Seuraava päivä – ${targetDay}` : `Tänään – ${targetDay}`;
+  
   const cfgN = normalizeGrid(cfg);
   const slots = cfgN.timetableSlots;
   const table = cfgN.timetable[targetDay];
+  const overrides = cfgN.manualOverrides[targetDay];
 
   return (
     <Card className="h-full">
@@ -210,7 +219,12 @@ function TimetableCard({ cfg }) {
               {slots.map((slot) => (
                 <tr key={slot}>
                   <td className="p-2 border border-zinc-700 text-center">{slot}</td>
-                  {cfgN.kids.map((_, kidIdx) => (<td key={kidIdx} className="p-1 border border-zinc-700">{table?.[slot]?.[kidIdx] || "—"}</td>))}
+                  {cfgN.kids.map((_, kidIdx) => {
+                    const overrideEntry = overrides?.[slot]?.[kidIdx];
+                    const icsEntry = table?.[slot]?.[kidIdx];
+                    const displayValue = overrideEntry || icsEntry || "—";
+                    return (<td key={kidIdx} className="p-1 border border-zinc-700">{displayValue}</td>);
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -236,6 +250,7 @@ const DEFAULT_CFG = {
   kids: ["Onerva","Nanni","Elmeri"],
   timetableSlots: ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
   timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
+  manualOverrides: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
   ics: { Onerva: "", Nanni: "", Elmeri: "" },
   icsProxy: ""
 };
@@ -243,7 +258,6 @@ const DEFAULT_CFG = {
 export default function App() {
   const [cfgFromStorage, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
   
-  // FEATURE: Override ICS links with values from environment variables if they exist.
   const cfg = {
     ...cfgFromStorage,
     ics: {
@@ -267,9 +281,10 @@ export default function App() {
     try{
       const weekStart = startOfWeek(new Date());
       const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6); weekEnd.setHours(23,59,59,999);
-      const next = { ...cfg, timetable: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} } };
+      const newTimetable = { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} };
       const kidNames = cfg.kids;
       const slots = cfg.timetableSlots;
+
       for(let kIdx=0;kIdx<kidNames.length;kIdx++){
         const name = kidNames[kIdx];
         const url = cfg.ics?.[name];
@@ -283,19 +298,18 @@ export default function App() {
             const label = slotLabelForDateRange(slots, e.start, e.end);
             if(!label) continue;
 
-            if (!next.timetable[wd][label]) next.timetable[wd][label] = Array(kidNames.length).fill("");
+            if (!newTimetable[wd][label]) newTimetable[wd][label] = Array(kidNames.length).fill("");
 
             const durMin = Math.round((e.end - e.start) / 60000);
-
-            // REFACTOR: Simplified logic for handling lessons.
-            next.timetable[wd][label][kIdx] = e.summary || "Tunti";
+            
+            newTimetable[wd][label][kIdx] = e.summary || "Tunti";
 
             if (/^onerva$/i.test(name) && durMin >= 70) {
               const idx = slots.indexOf(label);
               if (idx >= 0 && idx + 1 < slots.length) {
                 const nextLabel = slots[idx + 1];
-                if (!next.timetable[wd][nextLabel]) next.timetable[wd][nextLabel] = Array(kidNames.length).fill("");
-                next.timetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
+                if (!newTimetable[wd][nextLabel]) newTimetable[wd][nextLabel] = Array(kidNames.length).fill("");
+                newTimetable[wd][nextLabel][kIdx] = e.summary || "Tunti";
               }
             }
           }
@@ -303,7 +317,7 @@ export default function App() {
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
       }
-      setCfg(next);
+      setCfg({...cfg, timetable: newTimetable});
     }finally{ setLoading(false); }
   }
 
@@ -328,22 +342,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
       <div className="max-w-6xl mx-auto grid gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-2xl md:text-3xl font-bold">Kodin infonäyttö</div>
-            <div className="text-sm text-zinc-400">Sää • Lukujärjestykset (Wilma ICS) • Kello</div>
-          </div>
-          <div className="flex gap-2 items-center">
-            <Button onClick={()=>setEditing(true)}>Asetukset</Button>
-            <Button onClick={pullIcsAll}>Hae lukujärjestykset</Button>
-          </div>
-        </div>
-        {err && <div className="text-sm text-red-400">{err}</div>}
+        {err && <div className="text-sm text-red-400 mb-4">{err}</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfg.city} /></div>
           <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={cfg} /></div>
+        </div>
+
+        <div className="flex justify-end gap-2 items-center mt-4">
+            <Button onClick={()=>setEditing(true)}>Asetukset</Button>
+            <Button onClick={pullIcsAll}>Hae lukujärjestykset</Button>
         </div>
       </div>
 
@@ -358,11 +367,18 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
   const save = () => { setConfig(normalizeGrid(localCfg)); onOpenChange(false); };
   const setKid = (idx, val) => update({ kids: localCfg.kids.map((k, i) => (i === idx ? val : k)) });
   
-  // FEATURE: Check which ICS links are from environment variables
   const icsFromEnv = {
     Onerva: import.meta.env.VITE_ICS_ONERVA,
     Nanni: import.meta.env.VITE_ICS_NANNI,
     Elmeri: import.meta.env.VITE_ICS_ELMERI,
+  };
+
+  const updateOverride = (day, slot, kidIdx, value) => {
+    const newOverrides = JSON.parse(JSON.stringify(localCfg.manualOverrides));
+    if (!newOverrides[day]) newOverrides[day] = {};
+    if (!newOverrides[day][slot]) newOverrides[day][slot] = [];
+    newOverrides[day][slot][kidIdx] = value;
+    update({ manualOverrides: newOverrides });
   };
 
   if (!open) return null;
@@ -402,7 +418,51 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
           <Input placeholder="esim. https://<nimi>.workers.dev/?url=" value={localCfg.icsProxy||""} onChange={(e)=>update({ icsProxy: e.target.value })} />
           <div className="text-xs text-zinc-400">Jos suorat pyynnöt estetään (CORS), lisää tähän esim. Cloudflare Worker -proxy.</div>
         </div>
-        <div className="flex justify-end gap-2">
+        <Separator />
+
+        <div className="grid gap-2">
+          <Label>Lukujärjestyksen manuaaliset muutokset</Label>
+          <div className="text-xs text-zinc-400">
+            Tähän syötetyt arvot korvaavat Wilmasta haetun lukujärjestyksen. Voit lisätä esimerkiksi iltapäiväkerhon tai muita menoja.
+          </div>
+          <Tabs defaultValue="maanantai" className="mt-2">
+            <TabsList>
+              {WEEKDAYS.map(day => (<TabsTrigger key={day} value={day}>{day.slice(0,2)}</TabsTrigger>))}
+            </TabsList>
+            {WEEKDAYS.map(day => (
+              <TabsContent key={day} value={day}>
+                <div className="overflow-auto mt-2">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="p-2 border border-zinc-700 w-28">Aika</th>
+                        {localCfg.kids.map((k, i) => (<th key={i} className="p-2 border border-zinc-700">{k}</th>))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localCfg.timetableSlots.map((slot) => (
+                        <tr key={slot}>
+                          <td className="p-2 border border-zinc-700 text-center">{slot}</td>
+                          {localCfg.kids.map((_, kidIdx) => (
+                            <td key={kidIdx} className="p-1 border border-zinc-700">
+                              <Input 
+                                className="bg-zinc-800 text-xs text-center p-1 h-full"
+                                value={localCfg.manualOverrides?.[day]?.[slot]?.[kidIdx] || ""}
+                                onChange={(e) => updateOverride(day, slot, kidIdx, e.target.value)}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
           <Button onClick={() => onOpenChange(false)} className="border">Peruuta</Button>
           <Button onClick={save} className="border">Tallenna</Button>
         </div>
