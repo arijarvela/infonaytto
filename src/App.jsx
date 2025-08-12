@@ -169,18 +169,15 @@ function normalizeGrid(cfg) {
   return next;
 }
 
-function slotLabelForDateRange(slots, start, end){
-  if(!(start instanceof Date)) start = new Date(start);
-  if(!(end instanceof Date)) end = new Date(end);
-  const m = start.getMinutes();
-  let h = start.getHours() + (m >= 30 ? 1 : 0);
-  if (h < 0) h = 0; if (h > 23) h = 23;
-  const label = `${h}-${h+1}`;
-  if (slots.includes(label)) return label;
-  const alt1 = `${start.getHours()}-${start.getHours()+1}`;
-  const alt2 = `${start.getHours()+1}-${start.getHours()+2}`;
-  if (slots.includes(alt1)) return alt1;
-  if (slots.includes(alt2)) return alt2;
+// FIX: Changed function to not round the start time.
+function slotLabelForDateRange(slots, start, end) {
+  if (!(start instanceof Date)) start = new Date(start);
+  const startHour = start.getHours();
+  const label = `${startHour}-${startHour + 1}`;
+  
+  if (slots.includes(label)) {
+    return label;
+  }
   return null;
 }
 
@@ -264,7 +261,7 @@ export default function App() {
       ...cfgFromStorage.ics,
       ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
       ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
-      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
+      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELmeri }),
     }
   };
 
