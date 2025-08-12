@@ -1,6 +1,6 @@
 # Infonäyttö (GitHub Variables, ei Firebasea)
 
-React + Vite -sovellus. Asetukset luetaan GitHubin **Variables** -muuttujista (VITE_*).
+React + Vite -sovellus. Asetukset luetaan GitHubin **Variables** -muuttujista (VITE_*). 
 
 Variables (Settings → Secrets and variables → Actions → Variables):
 - VITE_CITY
