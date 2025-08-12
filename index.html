@@ -2,14 +2,26 @@
 <html lang="fi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kodin infonäyttö</title>
+
+    <!-- Selkeä, miellyttävä fontti otsikoihin ja tekstiin -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
     <style>
       :root { color-scheme: dark; }
-      body { margin:0; background:#0a0a0b; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    </style>
-    <style>
       html, body, #root { max-width: 100%; overflow-x: hidden; }
+      body {
+        margin: 0;
+        background: #0a0a0b;
+        color: #e4e4e7;
+        font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .title-xl { font-weight: 800; font-size: 28px; letter-spacing: -0.02em; }
+      .subtitle { color:#a1a1aa; font-size:12px; }
+      .card-title { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
     </style>
   </head>
   <body>
