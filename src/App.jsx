@@ -36,7 +36,6 @@ function TabsTrigger({ value, children, className="" }) { const ctx = useContext
 function TabsContent({ value, children }) { const ctx = useContext(TabsCtx); return ctx?.value === value ? <div className="mt-2">{children}</div> : null; }
 
 /* LocalStorage with Date hydration */
-// FIX: Rewritten useLocalStorage to handle Date objects correctly on load
 const dateReviver = (key, value) => {
   const isISO8601Z = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/;
   if (typeof value === 'string' && isISO8601Z.test(value)) {
@@ -160,26 +159,43 @@ const TIMELINE_END_HOUR = 17;
 const PIXELS_PER_HOUR = 80;
 
 function TimetableCard({ cfg }) {
-  const now = new Date();
-  const hour = now.getHours();
-  let dayIndex = now.getDay(); 
+  const getInitialDate = () => {
+    const now = new Date();
+    if (now.getHours() >= 16) {
+      now.setDate(now.getDate() + 1);
+    }
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 6) now.setDate(now.getDate() + 2);
+    else if (dayOfWeek === 0) now.setDate(now.getDate() + 1);
+    return now;
+  };
 
-  if (hour >= 16) {
-    dayIndex = (dayIndex + 1) % 7;
-  }
+  const [viewDate, setViewDate] = useState(getInitialDate);
 
-  if (dayIndex === 6 || dayIndex === 0) {
-    dayIndex = 1;
-  }
+  const changeDay = (increment) => {
+    setViewDate(currentDate => {
+      const newDate = new Date(currentDate);
+      newDate.setDate(newDate.getDate() + increment);
+      
+      const dayOfWeek = newDate.getDay();
+      if (increment > 0 && (dayOfWeek === 6 || dayOfWeek === 0)) {
+        newDate.setDate(newDate.getDate() + (8 - dayOfWeek)); // Skip to Monday
+      } else if (increment < 0 && (dayOfWeek === 6 || dayOfWeek === 0)) {
+        newDate.setDate(newDate.getDate() - (dayOfWeek === 6 ? 1 : 2)); // Skip to Friday
+      }
+      return newDate;
+    });
+  };
 
+  const dayIndex = viewDate.getDay();
   const targetDay = WEEKDAYS[dayIndex - 1]; 
-  if (!targetDay) return null; // Prevent crash if targetDay is undefined
-  const label = `Lukujärjestys – ${targetDay.charAt(0).toUpperCase() + targetDay.slice(1)}`;
+  const formattedDate = viewDate.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' });
   
   const cfgN = normalizeGrid(cfg);
   const kidColors = ["bg-sky-800/50 border-sky-500", "bg-rose-800/50 border-rose-500", "bg-emerald-800/50 border-emerald-500"];
 
   const getEventsForDay = (day, kidName, kidIdx) => {
+    if (!day) return [];
     const icsEvents = cfgN.timetable[day]?.[kidName] || [];
     const manualOverrides = cfgN.manualOverrides[day] || {};
     
@@ -188,9 +204,9 @@ function TimetableCard({ cfg }) {
     Object.entries(manualOverrides).forEach(([slot, kidsEntries]) => {
       if (kidsEntries[kidIdx]) {
         const [startHour] = slot.split('-').map(Number);
-        const slotStart = new Date();
+        const slotStart = new Date(viewDate);
         slotStart.setHours(startHour, 0, 0, 0);
-        const slotEnd = new Date();
+        const slotEnd = new Date(viewDate);
         slotEnd.setHours(startHour + 1, 0, 0, 0);
 
         finalEvents = finalEvents.filter(event => {
@@ -208,13 +224,20 @@ function TimetableCard({ cfg }) {
         });
       }
     });
-    return finalEvents;
+    return finalEvents.filter(e => e.start.toDateString() === viewDate.toDateString());
   };
 
   return (
     <Card className="h-full">
-      <CardHeader>
-        <CardTitle className="text-xl">{label}</CardTitle>
+      <CardHeader className="flex justify-between items-center">
+        <Button onClick={() => changeDay(-1)}>&lt;</Button>
+        <div className="text-center">
+            <CardTitle className="text-lg">{formattedDate}</CardTitle>
+        </div>
+        <div className="flex gap-2">
+            <Button onClick={() => setViewDate(getInitialDate())}>Tänään</Button>
+            <Button onClick={() => changeDay(1)}>&gt;</Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col">
@@ -333,7 +356,7 @@ export default function App() {
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 14); // Fetch for 2 weeks
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 14);
       weekEnd.setHours(23,59,59,999);
       const newTimetable = {};
       const kidNames = mergedCfg.kids;
