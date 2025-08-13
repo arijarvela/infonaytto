@@ -12,13 +12,14 @@ function Input(props) { return <input {...props} className={`w-full rounded-lg b
 function Label({ children }) { return <label className="text-sm font-medium text-zinc-200">{children}</label>; }
 function Separator() { return <div className="h-px bg-zinc-700 my-2" />; }
 
-/* Modal (FIX: Added missing component) */
+/* Modal */
 function Modal({ open, onOpenChange, title, children }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => onOpenChange(false)}>
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-lg w-full max-w-2xl m-4" onClick={(e) => e.stopPropagation()}>
-        <CardHeader className="flex justify-between items-center">
+      {/* FIX: Added overflow-y-auto and max-h-screen for scrolling on small devices */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-lg w-full max-w-2xl m-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <CardHeader className="flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
           <CardTitle className="text-xl">{title}</CardTitle>
           <button onClick={() => onOpenChange(false)} className="text-zinc-400 hover:text-zinc-100 text-2xl leading-none">&times;</button>
         </CardHeader>
@@ -142,20 +143,28 @@ const TIMELINE_START_HOUR = 8;
 const TIMELINE_END_HOUR = 17;
 const PIXELS_PER_HOUR = 80;
 
-// New graphical timetable component
 function TimetableCard({ cfg }) {
+  // FIX: Robust logic to determine which day to show, preventing crashes.
   const now = new Date();
   const hour = now.getHours();
-  const jsDay = now.getDay();
-  const todayIdxBase = jsDay === 0 || jsDay === 6 ? 0 : jsDay - 1;
-  const targetIdx = hour >= 18 ? (todayIdxBase + 1) % 5 : todayIdxBase;
-  const targetDay = WEEKDAYS[targetIdx];
-  const label = hour >= 18 ? `Seuraava päivä – ${targetDay}` : `Tänään – ${targetDay}`;
+  let dayIndex = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // After 6 PM, show the next day's schedule
+  if (hour >= 18) {
+    dayIndex = (dayIndex + 1) % 7;
+  }
+
+  // On Saturday (6) or Sunday (0), always show Monday (1)
+  if (dayIndex === 6 || dayIndex === 0) {
+    dayIndex = 1;
+  }
+
+  const targetDay = WEEKDAYS[dayIndex - 1]; // Adjust for 0-indexed WEEKDAYS array
+  const label = `Lukujärjestys – ${targetDay.charAt(0).toUpperCase() + targetDay.slice(1)}`;
   
   const cfgN = normalizeGrid(cfg);
   const kidColors = ["bg-sky-800/50 border-sky-500", "bg-rose-800/50 border-rose-500", "bg-emerald-800/50 border-emerald-500"];
 
-  // Combine ICS events and manual overrides for rendering
   const getEventsForDay = (day, kidName, kidIdx) => {
     const icsEvents = cfgN.timetable[day]?.[kidName] || [];
     const manualOverrides = cfgN.manualOverrides[day] || {};
@@ -170,14 +179,12 @@ function TimetableCard({ cfg }) {
         const slotEnd = new Date();
         slotEnd.setHours(startHour + 1, 0, 0, 0);
 
-        // Remove ICS events that overlap with this manual override
         finalEvents = finalEvents.filter(event => {
           const eventStart = event.start.getTime();
           const eventEnd = event.end.getTime();
           return eventEnd <= slotStart.getTime() || eventStart >= slotEnd.getTime();
         });
         
-        // Add manual override as an event
         finalEvents.push({
           start: slotStart,
           end: slotEnd,
@@ -192,52 +199,63 @@ function TimetableCard({ cfg }) {
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="text-xl">Lukujärjestys ({label})</CardTitle>
+        <CardTitle className="text-xl">{label}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex">
-          {/* Time axis */}
-          <div className="w-16 text-right pr-2 text-xs text-zinc-400">
-            {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => {
-              const hour = TIMELINE_START_HOUR + i;
-              return (
-                <div key={hour} style={{ height: `${PIXELS_PER_HOUR}px` }} className="relative">
-                  <span className="absolute -top-1.5">{hour}:00</span>
-                </div>
-              );
-            })}
+        <div className="flex flex-col">
+          {/* FIX: Header row with kid names */}
+          <div className="flex sticky top-0 bg-zinc-800 z-10">
+            <div className="w-16 flex-shrink-0"></div> {/* Spacer for time axis */}
+            <div className="flex-1 grid grid-cols-3 gap-1">
+              {cfgN.kids.map((kidName) => (
+                <div key={kidName} className="text-center font-bold p-2 border-b border-zinc-700">{kidName}</div>
+              ))}
+            </div>
           </div>
 
-          {/* Timetable grid */}
-          <div className="flex-1 grid grid-cols-3 gap-1">
-            {cfgN.kids.map((kidName, kidIdx) => (
-              <div key={kidName} className="relative border-l border-zinc-700">
-                {/* Background hour lines */}
-                {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
-                  <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
-                ))}
-                
-                {/* Events */}
-                {getEventsForDay(targetDay, kidName, kidIdx).map((event, eventIdx) => {
-                  const minutesFromStart = (event.start.getHours() - TIMELINE_START_HOUR) * 60 + event.start.getMinutes();
-                  const durationMinutes = (event.end.getTime() - event.start.getTime()) / 60000;
+          <div className="flex">
+            {/* Time axis */}
+            <div className="w-16 text-right pr-2 text-xs text-zinc-400 flex-shrink-0">
+              {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => {
+                const hour = TIMELINE_START_HOUR + i;
+                return (
+                  <div key={hour} style={{ height: `${PIXELS_PER_HOUR}px` }} className="relative">
+                    <span className="absolute -top-1.5">{hour}:00</span>
+                  </div>
+                );
+              })}
+            </div>
 
-                  const top = (minutesFromStart / 60) * PIXELS_PER_HOUR;
-                  const height = (durationMinutes / 60) * PIXELS_PER_HOUR;
+            {/* Timetable grid */}
+            <div className="flex-1 grid grid-cols-3 gap-1">
+              {cfgN.kids.map((kidName, kidIdx) => (
+                <div key={kidName} className="relative border-l border-zinc-700">
+                  {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
+                    <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
+                  ))}
+                  
+                  {getEventsForDay(targetDay, kidName, kidIdx).map((event, eventIdx) => {
+                    if (!event.start || !event.end) return null;
+                    const minutesFromStart = (event.start.getHours() - TIMELINE_START_HOUR) * 60 + event.start.getMinutes();
+                    const durationMinutes = (event.end.getTime() - event.start.getTime()) / 60000;
 
-                  return (
-                    <div
-                      key={eventIdx}
-                      className={`absolute w-full p-2 rounded-lg text-xs leading-tight shadow-md ${event.isOverride ? 'bg-zinc-600/80 border-zinc-400' : kidColors[kidIdx % kidColors.length]}`}
-                      style={{ top: `${top}px`, height: `${height}px`, border: '1px solid' }}
-                    >
-                      <p className="font-bold text-white">{event.summary}</p>
-                      <p className="text-zinc-200">{`${event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${event.end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                    const top = (minutesFromStart / 60) * PIXELS_PER_HOUR;
+                    const height = (durationMinutes / 60) * PIXELS_PER_HOUR;
+
+                    return (
+                      <div
+                        key={eventIdx}
+                        className={`absolute w-full p-2 rounded-lg text-xs leading-tight shadow-md ${event.isOverride ? 'bg-zinc-600/80 border-zinc-400' : kidColors[kidIdx % kidColors.length]}`}
+                        style={{ top: `${top}px`, height: `${height}px`, border: '1px solid' }}
+                      >
+                        <p className="font-bold text-white">{event.summary}</p>
+                        <p className="text-zinc-200">{`${event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${event.end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>
@@ -260,13 +278,12 @@ const DEFAULT_CFG = {
   city: "Raahe",
   kids: ["Onerva","Nanni","Elmeri"],
   timetableSlots: ["8-9","9-10","10-11","11-12","12-13","13-14","14-15","15-16"],
-  timetable: {}, // Now stores events directly: { [day]: { [kidName]: [event, ...] } }
+  timetable: {},
   manualOverrides: { maanantai:{}, tiistai:{}, keskiviikko:{}, torstai:{}, perjantai:{} },
   ics: { Onerva: "", Nanni: "", Elmeri: "" },
   icsProxy: ""
 };
 
-// Updated normalization logic for the new timetable structure
 function normalizeGrid(cfg) {
   const next = { ...cfg };
   if (!Array.isArray(next.kids)) next.kids = ["Onerva","Nanni","Elmeri"];
@@ -291,10 +308,8 @@ function normalizeGrid(cfg) {
   return next;
 }
 
-
 function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
-
 
 export default function App() {
   const [cfgFromStorage, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
@@ -313,12 +328,11 @@ export default function App() {
   const [localCfg, setLocalCfg] = useState(cfg);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [lastIcsRun, setLastIcsRun] = useLocalStorage("ics-last-run", "");
+  const [lastUpdate, setLastUpdate] = useLocalStorage("ics-last-update-date", "");
 
   useEffect(()=>setLocalCfg(cfg),[JSON.stringify(cfg)]);
 
-  // Rewritten logic to populate the new graphical-friendly timetable structure
-  async function pullIcsAll(){
+  const pullIcsAll = async (force = false) => {
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
@@ -343,7 +357,7 @@ export default function App() {
           
           for(const e of events){
             const wd = toWeekdayKey(e.start);
-            if(newTimetable[wd]) {
+            if(newTimetable[wd] && newTimetable[wd][name]) {
                newTimetable[wd][name].push(e);
             }
           }
@@ -352,26 +366,24 @@ export default function App() {
         }
       }
       setCfg({...cfg, timetable: newTimetable});
+      setLastUpdate(new Date().toISOString().slice(0, 10)); // Set today as last update date
     }finally{ setLoading(false); }
   }
 
+  // FIX: Automatic update logic
   useEffect(() => {
-    const tick = async () => {
-      try {
-        const now = new Date();
-        const isSunday = now.getDay() === 0;
-        if (!isSunday) return;
-        if (now.getHours() < 12) return;
-        const key = now.toISOString().slice(0,10);
-        if (lastIcsRun === key) return;
-        await pullIcsAll();
-        setLastIcsRun(key);
-      } catch (e) {}
+    const checkAndUpdate = () => {
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      // Update if it's after 4 PM and hasn't been updated today
+      if (now.getHours() >= 16 && lastUpdate !== today) {
+        pullIcsAll();
+      }
     };
-    tick();
-    const id = setInterval(tick, 5 * 60 * 1000);
+    checkAndUpdate(); // Check immediately on load
+    const id = setInterval(checkAndUpdate, 5 * 60 * 1000); // Check every 5 minutes
     return () => clearInterval(id);
-  }, [lastIcsRun, JSON.stringify(cfg.ics), cfg.icsProxy, JSON.stringify(cfg.kids)]);
+  }, [lastUpdate, cfg.ics, cfg.icsProxy, cfg.kids]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
@@ -386,12 +398,12 @@ export default function App() {
 
         <div className="flex justify-end gap-2 items-center mt-4">
             <Button onClick={()=>setEditing(true)}>Asetukset</Button>
-            <Button onClick={pullIcsAll}>Hae lukujärjestykset</Button>
+            {/* Removed manual update button as it's now automatic */}
         </div>
       </div>
 
       <SettingsDialog open={editing} onOpenChange={setEditing} config={cfg} setConfig={setCfg} localCfg={localCfg} setLocalCfg={setLocalCfg} />
-      {loading && (<div className="fixed bottom-4 right-4 text-xs bg-zinc-800 border border-zinc-700 px-3 py-2 rounded-lg">Haetaan ICS-tietoja…</div>)}
+      {loading && (<div className="fixed bottom-4 right-4 text-xs bg-zinc-800 border border-zinc-700 px-3 py-2 rounded-lg">Päivitetään lukujärjestyksiä…</div>)}
     </div>
   );
 }
@@ -418,7 +430,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
   if (!open) return null;
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Asetukset">
-      <div className="grid gap-6">
+      <div className="grid gap-6 p-1"> {/* Added padding to prevent content touching edges */}
         <div className="grid gap-2">
           <Label>Paikkakunta</Label>
           <Input value={localCfg.city} onChange={(e) => update({ city: e.target.value })} placeholder="esim. Raahe" />
@@ -496,7 +508,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
           </Tabs>
         </div>
 
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex justify-end gap-2 mt-4 sticky bottom-0 bg-zinc-900 py-4">
           <Button onClick={() => onOpenChange(false)} className="border">Peruuta</Button>
           <Button onClick={save} className="border">Tallenna</Button>
         </div>
