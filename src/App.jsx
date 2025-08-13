@@ -147,7 +147,8 @@ function TimetableCard({ cfg }) {
   const hour = now.getHours();
   let dayIndex = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
 
-  if (hour >= 18) {
+  // FIX: Change view to next day after 4 PM (16:00)
+  if (hour >= 16) {
     dayIndex = (dayIndex + 1) % 7;
   }
 
@@ -295,7 +296,6 @@ function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.set
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
 
 export default function App() {
-  // FIX: Separate raw state for localStorage and hydrated state for the app
   const [rawCfg, setRawCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
   const [cfg, setCfg] = useState(DEFAULT_CFG);
 
@@ -303,9 +303,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // FIX: This effect hydrates the date strings from localStorage back into Date objects
   useEffect(() => {
-    const hydrated = JSON.parse(JSON.stringify(rawCfg)); // Deep copy to avoid mutation
+    const hydrated = JSON.parse(JSON.stringify(rawCfg)); 
     if (hydrated.timetable) {
       Object.values(hydrated.timetable).forEach(day => {
         if (day) {
@@ -321,7 +320,6 @@ export default function App() {
       });
     }
     
-    // Also merge ICS links from environment variables here
     const finalCfg = {
         ...hydrated,
         ics: {
@@ -339,7 +337,8 @@ export default function App() {
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+7); weekEnd.setHours(23,59,59,999);
+      // FIX: Fetch for 14 days to ensure next week's data is available
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+14); weekEnd.setHours(23,59,59,999);
       const newTimetable = {};
       const kidNames = cfg.kids;
 
@@ -368,7 +367,6 @@ export default function App() {
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
       }
-      // Save the raw, unhydrated data to localStorage
       setRawCfg({...rawCfg, timetable: newTimetable});
     }finally{ setLoading(false); }
   }
@@ -386,7 +384,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfg.city} /></div>
-          <div className="md:col-span-1"><Card><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={cfg} /></div>
         </div>
 
@@ -401,7 +399,6 @@ export default function App() {
 }
 
 function SettingsDialog({ open, onOpenChange, config, setConfig }) {
-  // This dialog now works with the hydrated config for display, but saves to the raw config
   const [localCfg, setLocalCfg] = useState(config);
   useEffect(() => setLocalCfg(config), [config, open]);
 
@@ -512,3 +509,4 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
     </Modal>
   );
 }
+
