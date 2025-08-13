@@ -367,7 +367,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfg.city} /></div>
-        /*  <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div> */
+          
           <div className="md:col-span-4"><TimetableCard cfg={cfg} /></div>
         </div>
 
