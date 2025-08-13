@@ -199,7 +199,6 @@ function TimetableCard({ cfg }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col">
-          {/* Header row with kid names */}
           <div className="flex sticky top-0 bg-zinc-800 z-10">
             <div className="flex-1 grid grid-cols-3 gap-1">
               {cfgN.kids.map((kidName) => (
@@ -208,9 +207,7 @@ function TimetableCard({ cfg }) {
             </div>
           </div>
 
-          {/* Timetable grid */}
           <div className="relative">
-            {/* Background hour lines are now behind the columns */}
             <div className="absolute inset-0">
               {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
                 <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
@@ -298,24 +295,45 @@ function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.set
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
 
 export default function App() {
-  const [cfgFromStorage, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
-  
-  const cfg = {
-    ...cfgFromStorage,
-    ics: {
-      ...cfgFromStorage.ics,
-      ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
-      ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
-      ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
-    }
-  };
+  // FIX: Separate raw state for localStorage and hydrated state for the app
+  const [rawCfg, setRawCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
+  const [cfg, setCfg] = useState(DEFAULT_CFG);
 
   const [editing, setEditing] = useState(false);
-  const [localCfg, setLocalCfg] = useState(cfg);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(()=>setLocalCfg(cfg),[JSON.stringify(cfg)]);
+  // FIX: This effect hydrates the date strings from localStorage back into Date objects
+  useEffect(() => {
+    const hydrated = JSON.parse(JSON.stringify(rawCfg)); // Deep copy to avoid mutation
+    if (hydrated.timetable) {
+      Object.values(hydrated.timetable).forEach(day => {
+        if (day) {
+          Object.values(day).forEach(kidEvents => {
+            if (Array.isArray(kidEvents)) {
+              kidEvents.forEach(event => {
+                event.start = event.start ? new Date(event.start) : null;
+                event.end = event.end ? new Date(event.end) : null;
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // Also merge ICS links from environment variables here
+    const finalCfg = {
+        ...hydrated,
+        ics: {
+            ...hydrated.ics,
+            ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
+            ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
+            ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
+        }
+    };
+    setCfg(finalCfg);
+  }, [rawCfg]);
+
 
   const pullIcsAll = async () => {
     setErr(""); setLoading(true);
@@ -350,7 +368,8 @@ export default function App() {
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
       }
-      setCfg({...cfg, timetable: newTimetable});
+      // Save the raw, unhydrated data to localStorage
+      setRawCfg({...rawCfg, timetable: newTimetable});
     }finally{ setLoading(false); }
   }
 
@@ -367,7 +386,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={cfg.city} /></div>
-          <div className="md:col-span-1"><Card><CardHeader></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-1"><Card><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={cfg} /></div>
         </div>
 
@@ -376,13 +395,16 @@ export default function App() {
         </div>
       </div>
 
-      <SettingsDialog open={editing} onOpenChange={setEditing} config={cfg} setConfig={setCfg} localCfg={localCfg} setLocalCfg={setLocalCfg} />
-      {loading && (<div className="fixed bottom-4 right-4 text-xs bg-zinc-800 border border-zinc-700 px-3 py-2 rounded-lg">Päivitetään lukujärjestyksiä…</div>)}
+      <SettingsDialog open={editing} onOpenChange={setEditing} config={cfg} setConfig={setRawCfg} />
     </div>
   );
 }
 
-function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLocalCfg }) {
+function SettingsDialog({ open, onOpenChange, config, setConfig }) {
+  // This dialog now works with the hydrated config for display, but saves to the raw config
+  const [localCfg, setLocalCfg] = useState(config);
+  useEffect(() => setLocalCfg(config), [config, open]);
+
   const update = (patch) => setLocalCfg((s) => normalizeGrid({ ...s, ...patch }));
   const save = () => { setConfig(normalizeGrid(localCfg)); onOpenChange(false); };
   const setKid = (idx, val) => update({ kids: localCfg.kids.map((k, i) => (i === idx ? val : k)) });
