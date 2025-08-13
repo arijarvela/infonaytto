@@ -17,7 +17,6 @@ function Modal({ open, onOpenChange, title, children }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => onOpenChange(false)}>
-      {/* FIX: Added overflow-y-auto and max-h-screen for scrolling on small devices */}
       <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-lg w-full max-w-2xl m-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
           <CardTitle className="text-xl">{title}</CardTitle>
@@ -144,22 +143,19 @@ const TIMELINE_END_HOUR = 17;
 const PIXELS_PER_HOUR = 80;
 
 function TimetableCard({ cfg }) {
-  // FIX: Robust logic to determine which day to show, preventing crashes.
   const now = new Date();
   const hour = now.getHours();
   let dayIndex = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
 
-  // After 6 PM, show the next day's schedule
   if (hour >= 18) {
     dayIndex = (dayIndex + 1) % 7;
   }
 
-  // On Saturday (6) or Sunday (0), always show Monday (1)
   if (dayIndex === 6 || dayIndex === 0) {
     dayIndex = 1;
   }
 
-  const targetDay = WEEKDAYS[dayIndex - 1]; // Adjust for 0-indexed WEEKDAYS array
+  const targetDay = WEEKDAYS[dayIndex - 1]; 
   const label = `Lukujärjestys – ${targetDay.charAt(0).toUpperCase() + targetDay.slice(1)}`;
   
   const cfgN = normalizeGrid(cfg);
@@ -203,9 +199,8 @@ function TimetableCard({ cfg }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col">
-          {/* FIX: Header row with kid names */}
           <div className="flex sticky top-0 bg-zinc-800 z-10">
-            <div className="w-16 flex-shrink-0"></div> {/* Spacer for time axis */}
+            <div className="w-16 flex-shrink-0"></div>
             <div className="flex-1 grid grid-cols-3 gap-1">
               {cfgN.kids.map((kidName) => (
                 <div key={kidName} className="text-center font-bold p-2 border-b border-zinc-700">{kidName}</div>
@@ -214,7 +209,6 @@ function TimetableCard({ cfg }) {
           </div>
 
           <div className="flex">
-            {/* Time axis */}
             <div className="w-16 text-right pr-2 text-xs text-zinc-400 flex-shrink-0">
               {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => {
                 const hour = TIMELINE_START_HOUR + i;
@@ -226,7 +220,6 @@ function TimetableCard({ cfg }) {
               })}
             </div>
 
-            {/* Timetable grid */}
             <div className="flex-1 grid grid-cols-3 gap-1">
               {cfgN.kids.map((kidName, kidIdx) => (
                 <div key={kidName} className="relative border-l border-zinc-700">
@@ -328,15 +321,14 @@ export default function App() {
   const [localCfg, setLocalCfg] = useState(cfg);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [lastUpdate, setLastUpdate] = useLocalStorage("ics-last-update-date", "");
 
   useEffect(()=>setLocalCfg(cfg),[JSON.stringify(cfg)]);
 
-  const pullIcsAll = async (force = false) => {
+  const pullIcsAll = async () => {
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6); weekEnd.setHours(23,59,59,999);
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+7); weekEnd.setHours(23,59,59,999);
       const newTimetable = {};
       const kidNames = cfg.kids;
 
@@ -357,7 +349,7 @@ export default function App() {
           
           for(const e of events){
             const wd = toWeekdayKey(e.start);
-            if(newTimetable[wd] && newTimetable[wd][name]) {
+            if(wd && newTimetable[wd] && newTimetable[wd][name]) {
                newTimetable[wd][name].push(e);
             }
           }
@@ -366,24 +358,20 @@ export default function App() {
         }
       }
       setCfg({...cfg, timetable: newTimetable});
-      setLastUpdate(new Date().toISOString().slice(0, 10)); // Set today as last update date
     }finally{ setLoading(false); }
   }
 
-  // FIX: Automatic update logic
+  // FIX: New, robust automatic update logic
   useEffect(() => {
-    const checkAndUpdate = () => {
-      const now = new Date();
-      const today = now.toISOString().slice(0, 10);
-      // Update if it's after 4 PM and hasn't been updated today
-      if (now.getHours() >= 16 && lastUpdate !== today) {
-        pullIcsAll();
-      }
-    };
-    checkAndUpdate(); // Check immediately on load
-    const id = setInterval(checkAndUpdate, 5 * 60 * 1000); // Check every 5 minutes
-    return () => clearInterval(id);
-  }, [lastUpdate, cfg.ics, cfg.icsProxy, cfg.kids]);
+    // Fetch on initial load
+    pullIcsAll();
+
+    // Refresh every 3 hours
+    const intervalId = setInterval(pullIcsAll, 3 * 60 * 60 * 1000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [JSON.stringify(cfg.ics), cfg.icsProxy]); // Rerun if ICS links change
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
@@ -398,7 +386,6 @@ export default function App() {
 
         <div className="flex justify-end gap-2 items-center mt-4">
             <Button onClick={()=>setEditing(true)}>Asetukset</Button>
-            {/* Removed manual update button as it's now automatic */}
         </div>
       </div>
 
@@ -430,7 +417,7 @@ function SettingsDialog({ open, onOpenChange, config, setConfig, localCfg, setLo
   if (!open) return null;
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Asetukset">
-      <div className="grid gap-6 p-1"> {/* Added padding to prevent content touching edges */}
+      <div className="grid gap-6 p-1">
         <div className="grid gap-2">
           <Label>Paikkakunta</Label>
           <Input value={localCfg.city} onChange={(e) => update({ city: e.target.value })} placeholder="esim. Raahe" />
