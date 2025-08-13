@@ -1,4 +1,4 @@
-# Infonäyttö (GitHub Variables, ei Firebasea)
+# Infonäyttö (GitHub Variables, ei Firebasea) 
 
 React + Vite -sovellus. Asetukset luetaan GitHubin **Variables** -muuttujista (VITE_*). 
 
