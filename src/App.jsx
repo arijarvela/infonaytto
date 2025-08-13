@@ -179,9 +179,9 @@ function TimetableCard({ cfg }) {
       
       const dayOfWeek = newDate.getDay();
       if (increment > 0 && (dayOfWeek === 6 || dayOfWeek === 0)) {
-        newDate.setDate(newDate.getDate() + (8 - dayOfWeek)); // Skip to Monday
+        newDate.setDate(newDate.getDate() + (dayOfWeek === 6 ? 2 : 1));
       } else if (increment < 0 && (dayOfWeek === 6 || dayOfWeek === 0)) {
-        newDate.setDate(newDate.getDate() - (dayOfWeek === 6 ? 1 : 2)); // Skip to Friday
+        newDate.setDate(newDate.getDate() - (dayOfWeek === 0 ? 2 : 1));
       }
       return newDate;
     });
@@ -224,7 +224,7 @@ function TimetableCard({ cfg }) {
         });
       }
     });
-    return finalEvents.filter(e => e.start.toDateString() === viewDate.toDateString());
+    return finalEvents.filter(e => e.start && e.start.toDateString() === viewDate.toDateString());
   };
 
   return (
@@ -355,9 +355,9 @@ export default function App() {
   const pullIcsAll = async () => {
     setErr(""); setLoading(true);
     try{
-      const weekStart = startOfWeek(new Date());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 14);
-      weekEnd.setHours(23,59,59,999);
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const future = new Date(today); future.setDate(future.getDate() + 14);
       const newTimetable = {};
       const kidNames = mergedCfg.kids;
 
@@ -374,7 +374,7 @@ export default function App() {
         if(!url) continue;
         try{
           const ics = await fetchICS(url, mergedCfg.icsProxy);
-          const events = parseICS(ics).filter(e=> e.start>=weekStart && e.start<=weekEnd);
+          const events = parseICS(ics).filter(e=> e.start>=today && e.start<=future);
           
           for(const e of events){
             const wd = toWeekdayKey(e.start);
@@ -408,6 +408,7 @@ export default function App() {
         </div>
 
         <div className="flex justify-end gap-2 items-center mt-4">
+            <Button onClick={pullIcsAll}>Nouda lukujärjestykset</Button>
             <Button onClick={()=>setEditing(true)}>Asetukset</Button>
         </div>
       </div>
