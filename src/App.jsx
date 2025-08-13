@@ -199,8 +199,8 @@ function TimetableCard({ cfg }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col">
+          {/* Header row with kid names */}
           <div className="flex sticky top-0 bg-zinc-800 z-10">
-            <div className="w-16 flex-shrink-0"></div>
             <div className="flex-1 grid grid-cols-3 gap-1">
               {cfgN.kids.map((kidName) => (
                 <div key={kidName} className="text-center font-bold p-2 border-b border-zinc-700">{kidName}</div>
@@ -208,25 +208,18 @@ function TimetableCard({ cfg }) {
             </div>
           </div>
 
-          <div className="flex">
-            <div className="w-16 text-right pr-2 text-xs text-zinc-400 flex-shrink-0">
-              {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => {
-                const hour = TIMELINE_START_HOUR + i;
-                return (
-                  <div key={hour} style={{ height: `${PIXELS_PER_HOUR}px` }} className="relative">
-                    <span className="absolute -top-1.5">{hour}:00</span>
-                  </div>
-                );
-              })}
+          {/* Timetable grid */}
+          <div className="relative">
+            {/* Background hour lines are now behind the columns */}
+            <div className="absolute inset-0">
+              {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
+                <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
+              ))}
             </div>
 
-            <div className="flex-1 grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1 relative">
               {cfgN.kids.map((kidName, kidIdx) => (
-                <div key={kidName} className="relative border-l border-zinc-700">
-                  {Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR }).map((_, i) => (
-                    <div key={i} style={{ height: `${PIXELS_PER_HOUR}px` }} className="border-b border-zinc-800"></div>
-                  ))}
-                  
+                <div key={kidName} className="relative border-l border-zinc-700 h-full" style={{minHeight: `${(TIMELINE_END_HOUR - TIMELINE_START_HOUR) * PIXELS_PER_HOUR}px`}}>
                   {getEventsForDay(targetDay, kidName, kidIdx).map((event, eventIdx) => {
                     if (!event.start || !event.end) return null;
                     const minutesFromStart = (event.start.getHours() - TIMELINE_START_HOUR) * 60 + event.start.getMinutes();
@@ -361,17 +354,11 @@ export default function App() {
     }finally{ setLoading(false); }
   }
 
-  // FIX: New, robust automatic update logic
   useEffect(() => {
-    // Fetch on initial load
     pullIcsAll();
-
-    // Refresh every 3 hours
     const intervalId = setInterval(pullIcsAll, 3 * 60 * 60 * 1000);
-
-    // Cleanup interval on component unmount
     return () => clearInterval(intervalId);
-  }, [JSON.stringify(cfg.ics), cfg.icsProxy]); // Rerun if ICS links change
+  }, [JSON.stringify(cfg.ics), cfg.icsProxy]); 
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
