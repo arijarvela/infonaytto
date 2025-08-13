@@ -35,13 +35,30 @@ function TabsList({ children, className="" }) { return <div className={`flex gap
 function TabsTrigger({ value, children, className="" }) { const ctx = useContext(TabsCtx); const active = ctx?.value === value; return <button onClick={()=>ctx.setValue(value)} className={`px-3 py-1.5 rounded-lg border border-zinc-600 text-sm capitalize ${active?"bg-zinc-700":"bg-zinc-800 hover:bg-zinc-700"} ${className}`}>{children}</button>; }
 function TabsContent({ value, children }) { const ctx = useContext(TabsCtx); return ctx?.value === value ? <div className="mt-2">{children}</div> : null; }
 
-/* LocalStorage */
+/* LocalStorage with Date hydration */
+// FIX: Rewritten useLocalStorage to handle Date objects correctly on load
+const dateReviver = (key, value) => {
+  const isISO8601Z = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/;
+  if (typeof value === 'string' && isISO8601Z.test(value)) {
+    return new Date(value);
+  }
+  return value;
+};
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
-    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initialValue; }
-    catch { return initialValue; }
+    try { 
+      const raw = localStorage.getItem(key); 
+      return raw ? JSON.parse(raw, dateReviver) : initialValue; 
+    }
+    catch { 
+      return initialValue; 
+    }
   });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }, [key, value]);
+  useEffect(() => { 
+    try { 
+      localStorage.setItem(key, JSON.stringify(value)); 
+    } catch {} 
+  }, [key, value]);
   return [value, setValue];
 }
 
@@ -145,9 +162,8 @@ const PIXELS_PER_HOUR = 80;
 function TimetableCard({ cfg }) {
   const now = new Date();
   const hour = now.getHours();
-  let dayIndex = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  let dayIndex = now.getDay(); 
 
-  // FIX: Change view to next day after 4 PM (16:00)
   if (hour >= 16) {
     dayIndex = (dayIndex + 1) % 7;
   }
@@ -157,6 +173,7 @@ function TimetableCard({ cfg }) {
   }
 
   const targetDay = WEEKDAYS[dayIndex - 1]; 
+  if (!targetDay) return null; // Prevent crash if targetDay is undefined
   const label = `Lukujärjestys – ${targetDay.charAt(0).toUpperCase() + targetDay.slice(1)}`;
   
   const cfgN = normalizeGrid(cfg);
@@ -177,6 +194,7 @@ function TimetableCard({ cfg }) {
         slotEnd.setHours(startHour + 1, 0, 0, 0);
 
         finalEvents = finalEvents.filter(event => {
+          if (!event.start || !event.end) return false;
           const eventStart = event.start.getTime();
           const eventEnd = event.end.getTime();
           return eventEnd <= slotStart.getTime() || eventStart >= slotEnd.getTime();
@@ -296,51 +314,29 @@ function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.set
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
 
 export default function App() {
-  const [rawCfg, setRawCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
-  const [cfg, setCfg] = useState(DEFAULT_CFG);
-
+  const [cfg, setCfg] = useLocalStorage("home-dashboard-config", DEFAULT_CFG);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    const hydrated = JSON.parse(JSON.stringify(rawCfg)); 
-    if (hydrated.timetable) {
-      Object.values(hydrated.timetable).forEach(day => {
-        if (day) {
-          Object.values(day).forEach(kidEvents => {
-            if (Array.isArray(kidEvents)) {
-              kidEvents.forEach(event => {
-                event.start = event.start ? new Date(event.start) : null;
-                event.end = event.end ? new Date(event.end) : null;
-              });
-            }
-          });
-        }
-      });
+  const mergedCfg = {
+    ...cfg,
+    ics: {
+        ...cfg.ics,
+        ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
+        ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
+        ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
     }
-    
-    const finalCfg = {
-        ...hydrated,
-        ics: {
-            ...hydrated.ics,
-            ...(import.meta.env.VITE_ICS_ONERVA && { Onerva: import.meta.env.VITE_ICS_ONERVA }),
-            ...(import.meta.env.VITE_ICS_NANNI && { Nanni: import.meta.env.VITE_ICS_NANNI }),
-            ...(import.meta.env.VITE_ICS_ELMERI && { Elmeri: import.meta.env.VITE_ICS_ELMERI }),
-        }
-    };
-    setCfg(finalCfg);
-  }, [rawCfg]);
-
+  };
 
   const pullIcsAll = async () => {
     setErr(""); setLoading(true);
     try{
       const weekStart = startOfWeek(new Date());
-      // FIX: Fetch for 14 days to ensure next week's data is available
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+14); weekEnd.setHours(23,59,59,999);
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 14); // Fetch for 2 weeks
+      weekEnd.setHours(23,59,59,999);
       const newTimetable = {};
-      const kidNames = cfg.kids;
+      const kidNames = mergedCfg.kids;
 
       for(const day of WEEKDAYS) {
         newTimetable[day] = {};
@@ -351,10 +347,10 @@ export default function App() {
 
       for(let kIdx=0;kIdx<kidNames.length;kIdx++){
         const name = kidNames[kIdx];
-        const url = cfg.ics?.[name];
+        const url = mergedCfg.ics?.[name];
         if(!url) continue;
         try{
-          const ics = await fetchICS(url, cfg.icsProxy);
+          const ics = await fetchICS(url, mergedCfg.icsProxy);
           const events = parseICS(ics).filter(e=> e.start>=weekStart && e.start<=weekEnd);
           
           for(const e of events){
@@ -367,7 +363,7 @@ export default function App() {
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
       }
-      setRawCfg({...rawCfg, timetable: newTimetable});
+      setCfg({...cfg, timetable: newTimetable});
     }finally{ setLoading(false); }
   }
 
@@ -375,7 +371,7 @@ export default function App() {
     pullIcsAll();
     const intervalId = setInterval(pullIcsAll, 3 * 60 * 60 * 1000);
     return () => clearInterval(intervalId);
-  }, [JSON.stringify(cfg.ics), cfg.icsProxy]); 
+  }, [JSON.stringify(mergedCfg.ics), mergedCfg.icsProxy]); 
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
@@ -383,9 +379,9 @@ export default function App() {
         {err && <div className="text-sm text-red-400 mb-4">{err}</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-3"><WeatherCard city={cfg.city} /></div>
+          <div className="md:col-span-3"><WeatherCard city={mergedCfg.city} /></div>
           <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
-          <div className="md:col-span-4"><TimetableCard cfg={cfg} /></div>
+          <div className="md:col-span-4"><TimetableCard cfg={mergedCfg} /></div>
         </div>
 
         <div className="flex justify-end gap-2 items-center mt-4">
@@ -393,7 +389,7 @@ export default function App() {
         </div>
       </div>
 
-      <SettingsDialog open={editing} onOpenChange={setEditing} config={cfg} setConfig={setRawCfg} />
+      <SettingsDialog open={editing} onOpenChange={setEditing} config={mergedCfg} setConfig={setCfg} />
     </div>
   );
 }
