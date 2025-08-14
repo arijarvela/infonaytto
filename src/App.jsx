@@ -65,6 +65,7 @@ const getFmiWeatherSymbolUrl = (symbol) => {
   return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
 };
 
+// FIX: Rewritten to use FMI's direct place search, which is more reliable.
 function useFmiWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -78,17 +79,8 @@ function useFmiWeather({ city }) {
       setLoading(true);
       setError(null);
       try {
-        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
-        const geoRes = await fetch(geoUrl, { signal: ctrl.signal });
-        if (!geoRes.ok) throw new Error(`Geokoodaus epäonnistui: ${geoRes.status}`);
-        const geoData = await geoRes.json();
-        if (!geoData.length) throw new Error("Paikkakuntaa ei löytynyt");
-        
-        // FIX: Round coordinates to 4 decimal places to prevent 400 Bad Request from FMI
-        const lat = parseFloat(geoData[0].lat).toFixed(4);
-        const lon = parseFloat(geoData[0].lon).toFixed(4);
-
-        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::simple&latlon=${lat},${lon}&parameters=temperature,windspeed,WeatherSymbol3`;
+        // Use FMI's direct place search instead of separate geocoding
+        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::simple&place=${encodeURIComponent(city)}&parameters=temperature,windspeed,WeatherSymbol3`;
         
         const res = await fetch(fmiUrl, { signal: ctrl.signal });
         if (!res.ok) throw new Error(`Sään haku epäonnistui: ${res.status}`);
@@ -98,7 +90,7 @@ function useFmiWeather({ city }) {
         const xmlDoc = parser.parseFromString(xmlText, "application/xml");
         
         const members = xmlDoc.getElementsByTagName("wfs:member");
-        if (members.length === 0) throw new Error("Säädataa ei saatavilla.");
+        if (members.length === 0) throw new Error("Säädataa ei saatavilla paikkakunnalle.");
 
         const allData = Array.from(members).map(member => {
             const timeEl = member.getElementsByTagName("BsWfs:Time")[0];
