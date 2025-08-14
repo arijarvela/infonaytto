@@ -128,7 +128,6 @@ function useFmiWeather({ city }) {
         const end = new Date(now.getTime() + 48 * 60 * 60 * 1000);
         
         const current = forecastList[0];
-        // FIX: Filter for every 2 hours
         const hours = forecastList.filter(item => {
             const itemTime = item.time;
             return itemTime >= now && itemTime <= end && itemTime.getHours() % 2 === 0;
@@ -141,7 +140,6 @@ function useFmiWeather({ city }) {
             icon: current.WeatherSymbol3,
           },
           hours: hours.map(h => {
-            // FIX: Add weekday abbreviation to the time string
             const weekday = h.time.toLocaleDateString("fi-FI", { weekday: 'short' });
             const hour = h.time.getHours();
             return {
@@ -183,12 +181,15 @@ function WeatherCard({ city }) {
         <div className="text-sm text-red-400">{error || (loading ? "Päivitetään…" : "")}</div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-4 mb-4">
-          {data?.current?.icon && (
-            <img alt="Sääsymboli" className="h-12 w-12" src={getFmiWeatherSymbolUrl(data.current.icon)} />
-          )}
-          <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
-          <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            {data?.current?.icon && (
+              <img alt="Sääsymboli" className="h-12 w-12" src={getFmiWeatherSymbolUrl(data.current.icon)} />
+            )}
+            <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
+            <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
+          </div>
+          <LiveClock />
         </div>
         <div className="overflow-x-auto">
           <div className="grid grid-flow-col auto-cols-max gap-2">
@@ -354,9 +355,14 @@ function TimetableCard({ cfg }) {
 function LiveClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
-  const date = now.toLocaleDateString("fi-FI", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const date = now.toLocaleDateString("fi-FI", { weekday: "long", day: "numeric", month: "long" });
   const time = now.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  return (<div className="text-center py-2"><div className="text-4xl font-bold tracking-tight">{time}</div><div className="text-sm text-zinc-300 capitalize">{date}</div></div>);
+  return (
+    <div className="text-right">
+      <div className="text-3xl font-bold tracking-tight">{time}</div>
+      <div className="text-sm text-zinc-300 capitalize">{date}</div>
+    </div>
+  );
 }
 
 /* Settings + ICS */
@@ -463,8 +469,7 @@ export default function App() {
         {err && <div className="text-sm text-red-400 mb-4">{err}</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-3"><WeatherCard city={mergedCfg.city} /></div>
-          <div className="md:col-span-1"><Card><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-4"><WeatherCard city={mergedCfg.city} /></div>
           <div className="md:col-span-4"><TimetableCard cfg={mergedCfg} /></div>
         </div>
 
