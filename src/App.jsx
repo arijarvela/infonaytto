@@ -87,8 +87,9 @@ function useFmiWeather({ city }) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "application/xml");
         
+        // FIX: Correctly select the value list element and parse the data
         const positionsEl = xmlDoc.getElementsByTagName("gmlcov:positions")[0];
-        const valuesEl = xmlDoc.getElementsByTagName("gml:rangeValues")[0];
+        const valuesEl = xmlDoc.getElementsByTagName("gml:doubleOrNilReasonTupleList")[0];
 
         if (!positionsEl || !valuesEl) {
             const exceptionText = xmlDoc.getElementsByTagName("ExceptionText")[0];
@@ -103,12 +104,13 @@ function useFmiWeather({ city }) {
         
         const forecastList = [];
         for (let i = 0; i < positions.length; i += 3) {
-            const timeStr = positions[i + 2];
+            const timeUnix = parseInt(positions[i + 2], 10);
+            const valueIndex = (i / 3) * 3;
             forecastList.push({
-                time: new Date(timeStr),
-                Temperature: parseFloat(values[i]),
-                WindSpeedMS: parseFloat(values[i + 1]),
-                WeatherSymbol3: parseFloat(values[i + 2]),
+                time: new Date(timeUnix * 1000),
+                Temperature: parseFloat(values[valueIndex]),
+                WindSpeedMS: parseFloat(values[valueIndex + 1]),
+                WeatherSymbol3: parseFloat(values[valueIndex + 2]),
             });
         }
 
