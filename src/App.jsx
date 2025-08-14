@@ -62,7 +62,6 @@ function useLocalStorage(key, initialValue) {
 /* FMI Weather */
 const getFmiWeatherSymbolUrl = (symbol) => {
   if (!symbol) return "";
-  // FIX: Corrected the URL to point to the raw SVG file without the 'd' prefix.
   return `https://raw.githubusercontent.com/fmidev/opendata-resources/master/symbols/WeatherSymbol3/${symbol}.svg`;
 };
 
@@ -129,7 +128,11 @@ function useFmiWeather({ city }) {
         const end = new Date(now.getTime() + 48 * 60 * 60 * 1000);
         
         const current = forecastList[0];
-        const hours = forecastList.filter(item => item.time >= now && item.time <= end);
+        // FIX: Filter for every 2 hours
+        const hours = forecastList.filter(item => {
+            const itemTime = item.time;
+            return itemTime >= now && itemTime <= end && itemTime.getHours() % 2 === 0;
+        });
 
         setData({
           current: {
@@ -137,12 +140,17 @@ function useFmiWeather({ city }) {
             wind: Math.round(current.WindSpeedMS),
             icon: current.WeatherSymbol3,
           },
-          hours: hours.map(h => ({
-            time: h.time.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
-            temp: Math.round(h.Temperature),
-            wind: Math.round(h.WindSpeedMS),
-            icon: h.WeatherSymbol3,
-          }))
+          hours: hours.map(h => {
+            // FIX: Add weekday abbreviation to the time string
+            const weekday = h.time.toLocaleDateString("fi-FI", { weekday: 'short' });
+            const hour = h.time.getHours();
+            return {
+              time: `${weekday} ${hour}`,
+              temp: Math.round(h.Temperature),
+              wind: Math.round(h.WindSpeedMS),
+              icon: h.WeatherSymbol3,
+            };
+          })
         });
 
       } catch (e) {
@@ -186,7 +194,7 @@ function WeatherCard({ city }) {
           <div className="grid grid-flow-col auto-cols-max gap-2">
             {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
-                <div className="text-xs text-zinc-300">{h.time}</div>
+                <div className="text-xs text-zinc-300 capitalize">{h.time}</div>
                 {h.icon && <img className="mx-auto h-8 w-8" alt="Sääsymboli" src={getFmiWeatherSymbolUrl(h.icon)} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
