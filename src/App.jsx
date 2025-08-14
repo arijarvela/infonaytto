@@ -65,7 +65,6 @@ const getFmiWeatherSymbolUrl = (symbol) => {
   return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
 };
 
-// FIX: Rewritten to use FMI's more robust multipointcoverage query.
 function useFmiWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -79,7 +78,8 @@ function useFmiWeather({ city }) {
       setLoading(true);
       setError(null);
       try {
-        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::multipointcoverage&place=${encodeURIComponent(city)}&parameters=Temperature,WindSpeedMS,WeatherSymbol3`;
+        // FIX: Made query more specific by adding ",Finland" to the place name.
+        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::multipointcoverage&place=${encodeURIComponent(city)},Finland&parameters=Temperature,WindSpeedMS,WeatherSymbol3`;
         
         const res = await fetch(fmiUrl, { signal: ctrl.signal });
         if (!res.ok) throw new Error(`Sään haku epäonnistui: ${res.status}`);
@@ -107,7 +107,7 @@ function useFmiWeather({ city }) {
             const valueRow = values[index].trim().split(' ');
             
             return {
-                time: new Date(timeStr),
+                time: new Date(parseInt(timeStr, 10) * 1000), // Convert UNIX timestamp to Date
                 Temperature: parseFloat(valueRow[0]),
                 WindSpeedMS: parseFloat(valueRow[1]),
                 WeatherSymbol3: parseFloat(valueRow[2]),
