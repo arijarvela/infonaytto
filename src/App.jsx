@@ -60,14 +60,11 @@ function useLocalStorage(key, initialValue) {
 }
 
 /* FMI Weather */
-// Helper to get FMI weather symbol URL
 const getFmiWeatherSymbolUrl = (symbol) => {
   if (!symbol) return "";
-  // FMI uses a number for the symbol, we map it to their SVG icon library
   return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
 };
 
-// Hook to fetch weather data from FMI
 function useFmiWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -81,16 +78,16 @@ function useFmiWeather({ city }) {
       setLoading(true);
       setError(null);
       try {
-        // FMI API requires coordinates. We use a simple proxy for geocoding.
-        // NOTE: In a real-world app, you might want a more robust geocoding solution.
         const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
         const geoRes = await fetch(geoUrl, { signal: ctrl.signal });
         if (!geoRes.ok) throw new Error(`Geokoodaus epäonnistui: ${geoRes.status}`);
         const geoData = await geoRes.json();
         if (!geoData.length) throw new Error("Paikkakuntaa ei löytynyt");
-        const { lat, lon } = geoData[0];
+        
+        // FIX: Round coordinates to 4 decimal places to prevent 400 Bad Request from FMI
+        const lat = parseFloat(geoData[0].lat).toFixed(4);
+        const lon = parseFloat(geoData[0].lon).toFixed(4);
 
-        // Fetch both current observation and forecast from FMI
         const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::simple&latlon=${lat},${lon}&parameters=temperature,windspeed,WeatherSymbol3`;
         
         const res = await fetch(fmiUrl, { signal: ctrl.signal });
@@ -156,7 +153,7 @@ function useFmiWeather({ city }) {
     };
 
     run();
-    const id = setInterval(run, 15 * 60 * 1000); // Refresh every 15 minutes
+    const id = setInterval(run, 15 * 60 * 1000);
     return () => {
       ctrl.abort();
       clearInterval(id);
