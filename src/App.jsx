@@ -1,7 +1,5 @@
 import React, { useEffect, useState, createContext, useContext } from "react";
 
-const OWM_API_KEY = import.meta.env.VITE_OWM_API_KEY || "156f04a68c2cc658949448716a6efec9";
-
 /* UI */
 function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>{children}</div>; }
 function CardHeader({ children, className="" }) { return <div className={`p-4 border-b border-zinc-700 ${className}`}>{children}</div>; }
@@ -61,59 +59,116 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-/* Weather */
-async function getCoordsFromCity(city) {
-  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${OWM_API_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Geokoodaus ${res.status}`);
-  const data = await res.json();
-  if (!data.length) throw new Error("Paikkakuntaa ei löytynyt");
-  return { lat: data[0].lat, lon: data[0].lon };
-}
+/* FMI Weather */
+// Helper to get FMI weather symbol URL
+const getFmiWeatherSymbolUrl = (symbol) => {
+  if (!symbol) return "";
+  // FMI uses a number for the symbol, we map it to their SVG icon library
+  return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
+};
 
-function useWeather({ city }) {
+// Hook to fetch weather data from FMI
+function useFmiWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
   useEffect(() => {
     if (!city) return;
     const ctrl = new AbortController();
+    
     const run = async () => {
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
-        const { lat, lon } = await getCoordsFromCity(city);
-        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=fi&appid=${OWM_API_KEY}`;
-        const r1 = await fetch(currentUrl, { signal: ctrl.signal });
-        const r2 = await fetch(forecastUrl, { signal: ctrl.signal });
-        if (!r1.ok) throw new Error(`Current ${r1.status}`);
-        if (!r2.ok) throw new Error(`Forecast ${r2.status}`);
-        const cur = await r1.json();
-        const f = await r2.json();
+        // FMI API requires coordinates. We use a simple proxy for geocoding.
+        // NOTE: In a real-world app, you might want a more robust geocoding solution.
+        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
+        const geoRes = await fetch(geoUrl, { signal: ctrl.signal });
+        if (!geoRes.ok) throw new Error(`Geokoodaus epäonnistui: ${geoRes.status}`);
+        const geoData = await geoRes.json();
+        if (!geoData.length) throw new Error("Paikkakuntaa ei löytynyt");
+        const { lat, lon } = geoData[0];
+
+        // Fetch both current observation and forecast from FMI
+        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::simple&latlon=${lat},${lon}&parameters=temperature,windspeed,WeatherSymbol3`;
+        
+        const res = await fetch(fmiUrl, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`Sään haku epäonnistui: ${res.status}`);
+        
+        const xmlText = await res.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+        
+        const members = xmlDoc.getElementsByTagName("wfs:member");
+        if (members.length === 0) throw new Error("Säädataa ei saatavilla.");
+
+        const allData = Array.from(members).map(member => {
+            const timeEl = member.getElementsByTagName("BsWfs:Time")[0];
+            const nameEl = member.getElementsByTagName("BsWfs:ParameterName")[0];
+            const valueEl = member.getElementsByTagName("BsWfs:ParameterValue")[0];
+            if (!timeEl || !nameEl || !valueEl) return null;
+            return {
+                time: new Date(timeEl.textContent),
+                name: nameEl.textContent,
+                value: parseFloat(valueEl.textContent)
+            };
+        }).filter(Boolean);
+
+        const groupedByTime = allData.reduce((acc, item) => {
+            const timeStr = item.time.toISOString();
+            if (!acc[timeStr]) {
+                acc[timeStr] = { time: item.time };
+            }
+            acc[timeStr][item.name] = item.value;
+            return acc;
+        }, {});
+
+        const forecastList = Object.values(groupedByTime).sort((a, b) => a.time - b.time);
+        
         const now = new Date();
         const end = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-        const hours = (f.list||[])
-          .filter(item => { const d = new Date(item.dt * 1000); return d >= now && d <= end; })
-          .map(row => ({
-            time: new Date(row.dt * 1000).toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
-            temp: Math.round(row.main?.temp ?? 0),
-            wind: Math.round(row.wind?.speed ?? 0),
-            icon: row.weather?.[0]?.icon,
-            desc: row.weather?.[0]?.description
-          }));
-        setData({ current: { temp: Math.round(cur.main?.temp ?? 0), wind: Math.round(cur.wind?.speed ?? 0), icon: cur.weather?.[0]?.icon, desc: cur.weather?.[0]?.description }, hours });
-      } catch (e) { if (e.name !== "AbortError") setError(e.message || String(e)); }
-      finally { setLoading(false); }
+        
+        const current = forecastList[0];
+        const hours = forecastList.filter(item => item.time >= now && item.time <= end);
+
+        setData({
+          current: {
+            temp: Math.round(current.Temperature),
+            wind: Math.round(current.WindSpeedMS),
+            icon: current.WeatherSymbol3,
+          },
+          hours: hours.map(h => ({
+            time: h.time.toLocaleTimeString("fi-FI", { hour: "2-digit", minute: "2-digit" }),
+            temp: Math.round(h.Temperature),
+            wind: Math.round(h.WindSpeedMS),
+            icon: h.WeatherSymbol3,
+          }))
+        });
+
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          setError(e.message || String(e));
+        }
+      } finally {
+        setLoading(false);
+      }
     };
+
     run();
-    const id = setInterval(run, 15 * 60 * 1000);
-    return () => { ctrl.abort(); clearInterval(id); };
+    const id = setInterval(run, 15 * 60 * 1000); // Refresh every 15 minutes
+    return () => {
+      ctrl.abort();
+      clearInterval(id);
+    };
   }, [city]);
+
   return { data, loading, error };
 }
 
+
 function WeatherCard({ city }) {
-  const { data, loading, error } = useWeather({ city });
+  const { data, loading, error } = useFmiWeather({ city });
   return (
     <Card>
       <CardHeader className="flex items-center justify-between">
@@ -123,10 +178,9 @@ function WeatherCard({ city }) {
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
           {data?.current?.icon && (
-            <img alt={data?.current?.desc||""} className="h-12 w-12" src={`https://openweathermap.org/img/wn/${data.current.icon}@2x.png`} />
+            <img alt="Sääsymboli" className="h-12 w-12" src={getFmiWeatherSymbolUrl(data.current.icon)} />
           )}
           <div className="text-5xl font-bold">{data?.current?.temp ?? "–"}°C</div>
-          <div className="text-sm text-zinc-300 capitalize">{data?.current?.desc || ""}</div>
           <div className="text-sm text-zinc-300">Tuuli {data?.current?.wind ?? "–"} m/s</div>
         </div>
         <div className="overflow-x-auto">
@@ -134,7 +188,7 @@ function WeatherCard({ city }) {
             {data?.hours?.map((h, i) => (
               <div key={i} className="rounded-xl border border-zinc-700 p-3 text-center w-24">
                 <div className="text-xs text-zinc-300">{h.time}</div>
-                {h.icon && <img className="mx-auto h-8 w-8" alt={h.desc||""} src={`https://openweathermap.org/img/wn/${h.icon}.png`} />}
+                {h.icon && <img className="mx-auto h-8 w-8" alt="Sääsymboli" src={getFmiWeatherSymbolUrl(h.icon)} />}
                 <div className="text-sm font-semibold">{h.temp}°C</div>
                 <div className="text-xs text-zinc-400">{h.wind} m/s</div>
               </div>
@@ -403,7 +457,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={mergedCfg.city} /></div>
-          <div className="md:col-span-1"><Card><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={mergedCfg} /></div>
         </div>
 
@@ -529,4 +583,3 @@ function SettingsDialog({ open, onOpenChange, config, setConfig }) {
     </Modal>
   );
 }
-
