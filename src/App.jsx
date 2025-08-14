@@ -62,8 +62,8 @@ function useLocalStorage(key, initialValue) {
 /* FMI Weather */
 const getFmiWeatherSymbolUrl = (symbol) => {
   if (!symbol) return "";
-  // Using the more robust GitHub-hosted symbols as suggested
-  return `https://raw.githubusercontent.com/fmidev/opendata-resources/master/symbols/WeatherSymbol3/d${symbol}.svg`;
+  // FIX: Corrected the URL to point to the raw SVG file without the 'd' prefix.
+  return `https://raw.githubusercontent.com/fmidev/opendata-resources/master/symbols/WeatherSymbol3/${symbol}.svg`;
 };
 
 function useFmiWeather({ city }) {
