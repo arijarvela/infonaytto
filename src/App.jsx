@@ -87,7 +87,6 @@ function useFmiWeather({ city }) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "application/xml");
         
-        // FIX: Correctly select the value list element and parse the data
         const positionsEl = xmlDoc.getElementsByTagName("gmlcov:positions")[0];
         const valuesEl = xmlDoc.getElementsByTagName("gml:doubleOrNilReasonTupleList")[0];
 
@@ -106,12 +105,24 @@ function useFmiWeather({ city }) {
         for (let i = 0; i < positions.length; i += 3) {
             const timeUnix = parseInt(positions[i + 2], 10);
             const valueIndex = (i / 3) * 3;
-            forecastList.push({
-                time: new Date(timeUnix * 1000),
-                Temperature: parseFloat(values[valueIndex]),
-                WindSpeedMS: parseFloat(values[valueIndex + 1]),
-                WeatherSymbol3: parseFloat(values[valueIndex + 2]),
-            });
+            
+            const temp = parseFloat(values[valueIndex]);
+            const wind = parseFloat(values[valueIndex + 1]);
+            const symbol = parseFloat(values[valueIndex + 2]);
+
+            // Ensure all values are valid numbers before pushing to the list
+            if (!isNaN(temp) && !isNaN(wind) && !isNaN(symbol)) {
+                forecastList.push({
+                    time: new Date(timeUnix * 1000),
+                    Temperature: temp,
+                    WindSpeedMS: wind,
+                    WeatherSymbol3: symbol,
+                });
+            }
+        }
+        
+        if (forecastList.length === 0) {
+            throw new Error("Säädatan jäsentäminen epäonnistui.");
         }
 
         const now = new Date();
@@ -445,7 +456,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-3"><WeatherCard city={mergedCfg.city} /></div>
-          <div className="md:col-span-1"><Card><CardHeader><CardTitle className="text-xl">Kello</CardTitle></CardHeader><CardContent><LiveClock /></CardContent></Card></div>
+          <div className="md:col-span-1"><Card><CardContent><LiveClock /></CardContent></Card></div>
           <div className="md:col-span-4"><TimetableCard cfg={mergedCfg} /></div>
         </div>
 
