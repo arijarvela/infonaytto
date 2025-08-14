@@ -78,8 +78,7 @@ function useFmiWeather({ city }) {
       setLoading(true);
       setError(null);
       try {
-        // FIX: Made query more specific by adding ",Finland" to the place name.
-        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::multipointcoverage&place=Raahe,Finland&parameters=Temperature,WindSpeedMS,WeatherSymbol3`;
+        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::multipointcoverage&place=${encodeURIComponent(city)}&parameters=Temperature,WindSpeedMS,WeatherSymbol3`;
         
         const res = await fetch(fmiUrl, { signal: ctrl.signal });
         if (!res.ok) throw new Error(`Sään haku epäonnistui: ${res.status}`);
@@ -94,25 +93,24 @@ function useFmiWeather({ city }) {
         if (!positionsEl || !valuesEl) {
             const exceptionText = xmlDoc.getElementsByTagName("ExceptionText")[0];
             if (exceptionText) {
-                throw new Error(`FMI virhe: ${exceptionText.textContent}`);
+                throw new Error(`FMI virhe: ${exceptionText.textContent.trim()}`);
             }
             throw new Error("Säädataa ei saatavilla paikkakunnalle.");
         }
 
-        const positions = positionsEl.textContent.trim().split('\n');
-        const values = valuesEl.textContent.trim().split('\n');
-
-        const forecastList = positions.map((pos, index) => {
-            const timeStr = pos.trim().split(' ')[2];
-            const valueRow = values[index].trim().split(' ');
-            
-            return {
-                time: new Date(parseInt(timeStr, 10) * 1000), // Convert UNIX timestamp to Date
-                Temperature: parseFloat(valueRow[0]),
-                WindSpeedMS: parseFloat(valueRow[1]),
-                WeatherSymbol3: parseFloat(valueRow[2]),
-            };
-        });
+        const positions = positionsEl.textContent.trim().split(/\s+/);
+        const values = valuesEl.textContent.trim().split(/\s+/);
+        
+        const forecastList = [];
+        for (let i = 0; i < positions.length; i += 3) {
+            const timeStr = positions[i + 2];
+            forecastList.push({
+                time: new Date(timeStr),
+                Temperature: parseFloat(values[i]),
+                WindSpeedMS: parseFloat(values[i + 1]),
+                WeatherSymbol3: parseFloat(values[i + 2]),
+            });
+        }
 
         const now = new Date();
         const end = new Date(now.getTime() + 48 * 60 * 60 * 1000);
