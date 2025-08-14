@@ -62,7 +62,8 @@ function useLocalStorage(key, initialValue) {
 /* FMI Weather */
 const getFmiWeatherSymbolUrl = (symbol) => {
   if (!symbol) return "";
-  return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
+  // Using the more robust GitHub-hosted symbols as suggested
+  return `https://raw.githubusercontent.com/fmidev/opendata-resources/master/symbols/WeatherSymbol3/d${symbol}.svg`;
 };
 
 function useFmiWeather({ city }) {
@@ -110,7 +111,6 @@ function useFmiWeather({ city }) {
             const wind = parseFloat(values[valueIndex + 1]);
             const symbol = parseFloat(values[valueIndex + 2]);
 
-            // Ensure all values are valid numbers before pushing to the list
             if (!isNaN(temp) && !isNaN(wind) && !isNaN(symbol)) {
                 forecastList.push({
                     time: new Date(timeUnix * 1000),
