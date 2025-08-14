@@ -65,7 +65,7 @@ const getFmiWeatherSymbolUrl = (symbol) => {
   return `https://www.ilmatieteenlaitos.fi/images/symbols/${symbol}.svg`;
 };
 
-// FIX: Rewritten to use FMI's direct place search, which is more reliable.
+// FIX: Rewritten to use FMI's more robust multipointcoverage query.
 function useFmiWeather({ city }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -79,8 +79,7 @@ function useFmiWeather({ city }) {
       setLoading(true);
       setError(null);
       try {
-        // Use FMI's direct place search instead of separate geocoding
-        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::simple&place=${encodeURIComponent(city)}&parameters=temperature,windspeed,WeatherSymbol3`;
+        const fmiUrl = `https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::point::multipointcoverage&place=${encodeURIComponent(city)}&parameters=Temperature,WindSpeedMS,WeatherSymbol3`;
         
         const res = await fetch(fmiUrl, { signal: ctrl.signal });
         if (!res.ok) throw new Error(`Sään haku epäonnistui: ${res.status}`);
@@ -89,32 +88,32 @@ function useFmiWeather({ city }) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "application/xml");
         
-        const members = xmlDoc.getElementsByTagName("wfs:member");
-        if (members.length === 0) throw new Error("Säädataa ei saatavilla paikkakunnalle.");
+        const positionsEl = xmlDoc.getElementsByTagName("gmlcov:positions")[0];
+        const valuesEl = xmlDoc.getElementsByTagName("gml:rangeValues")[0];
 
-        const allData = Array.from(members).map(member => {
-            const timeEl = member.getElementsByTagName("BsWfs:Time")[0];
-            const nameEl = member.getElementsByTagName("BsWfs:ParameterName")[0];
-            const valueEl = member.getElementsByTagName("BsWfs:ParameterValue")[0];
-            if (!timeEl || !nameEl || !valueEl) return null;
-            return {
-                time: new Date(timeEl.textContent),
-                name: nameEl.textContent,
-                value: parseFloat(valueEl.textContent)
-            };
-        }).filter(Boolean);
-
-        const groupedByTime = allData.reduce((acc, item) => {
-            const timeStr = item.time.toISOString();
-            if (!acc[timeStr]) {
-                acc[timeStr] = { time: item.time };
+        if (!positionsEl || !valuesEl) {
+            const exceptionText = xmlDoc.getElementsByTagName("ExceptionText")[0];
+            if (exceptionText) {
+                throw new Error(`FMI virhe: ${exceptionText.textContent}`);
             }
-            acc[timeStr][item.name] = item.value;
-            return acc;
-        }, {});
+            throw new Error("Säädataa ei saatavilla paikkakunnalle.");
+        }
 
-        const forecastList = Object.values(groupedByTime).sort((a, b) => a.time - b.time);
-        
+        const positions = positionsEl.textContent.trim().split('\n');
+        const values = valuesEl.textContent.trim().split('\n');
+
+        const forecastList = positions.map((pos, index) => {
+            const timeStr = pos.trim().split(' ')[2];
+            const valueRow = values[index].trim().split(' ');
+            
+            return {
+                time: new Date(timeStr),
+                Temperature: parseFloat(valueRow[0]),
+                WindSpeedMS: parseFloat(valueRow[1]),
+                WeatherSymbol3: parseFloat(valueRow[2]),
+            };
+        });
+
         const now = new Date();
         const end = new Date(now.getTime() + 48 * 60 * 60 * 1000);
         
