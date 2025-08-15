@@ -1,4 +1,4 @@
-import React, { useEffect, useState, createContext, useContext } from "react";
+import React, { useEffect, useState, createContext, useContext, useCallback } from "react";
 
 /* UI */
 function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>{children}</div>; }
@@ -400,7 +400,6 @@ function normalizeGrid(cfg) {
   return next;
 }
 
-function startOfWeek(d){ const x=new Date(d); const day=(x.getDay()||7)-1; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }
 function toWeekdayKey(d){ return WEEKDAYS[(d.getDay()||7)-1]; }
 
 export default function App() {
@@ -419,7 +418,7 @@ export default function App() {
     }
   };
 
-  const pullIcsAll = async () => {
+  const pullIcsAll = useCallback(async () => {
     setErr(""); setLoading(true);
     try{
       const today = new Date();
@@ -453,15 +452,15 @@ export default function App() {
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
       }
-      setCfg({...cfg, timetable: newTimetable});
+      setCfg(currentCfg => ({...currentCfg, timetable: newTimetable}));
     }finally{ setLoading(false); }
-  }
+  }, [JSON.stringify(mergedCfg.ics), mergedCfg.icsProxy, mergedCfg.kids, setCfg]); 
 
   useEffect(() => {
     pullIcsAll();
     const intervalId = setInterval(pullIcsAll, 3 * 60 * 60 * 1000);
     return () => clearInterval(intervalId);
-  }, [JSON.stringify(mergedCfg.ics), mergedCfg.icsProxy]); 
+  }, [pullIcsAll]); 
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-6" style={{fontFamily:"system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}>
