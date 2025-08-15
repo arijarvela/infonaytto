@@ -1,4 +1,5 @@
 import React, { useEffect, useState, createContext, useContext, useCallback } from "react";
+import { rrulestr } from "rrule";
 
 /* UI */
 function Card({ className = "", children }) { return <div className={`rounded-2xl border border-zinc-700 shadow-sm bg-zinc-800 text-zinc-100 ${className}`}>{children}</div>; }
@@ -213,6 +214,37 @@ function unfoldIcsLines(text) { const lines = text.split(/\r?\n/); const out=[];
 function parseIcsDate(v){ if(!v) return null; const z=v.endsWith("Z"); if(v.length===8){const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8); return new Date(Date.UTC(y,m,d));} const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8),hh=+v.slice(9,11)||0,mm=+v.slice(11,13)||0,ss=+v.slice(13,15)||0; return z? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss); }
 function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=null; for(const ln of lines){ if(ln==="BEGIN:VEVENT") cur={}; else if(ln==="END:VEVENT"){ if(cur.DTSTART&&cur.DTEND){ ev.push({ summary:cur.SUMMARY||"", start:parseIcsDate(cur.DTSTART), end:parseIcsDate(cur.DTEND), location:cur.LOCATION||"" }); } cur=null; } else if(cur){ const i=ln.indexOf(":"); if(i>-1){ const k=ln.slice(0,i).split(";")[0]; const v=ln.slice(i+1); cur[k]=v; } } } return ev; }
 async function fetchICS(url, proxy){ const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url; const res = await fetch(u, {redirect:"follow"}); if(!res.ok){ throw new Error(`ICS ${res.status}`); } return await res.text(); }
+function expandRecurringEvents(events, rangeStart, rangeEnd) {
+  const expanded = [];
+  for (const event of events) {
+    if (event.RRULE) {
+      let dtStart = event.start;
+      // Jos RRULE-rivissä on RRULE:-etuliite, poista se
+      let ruleStr = `DTSTART:${formatIcsDate(dtStart)}\nRRULE:${event.RRULE.replace(/^RRULE:/, "")}`;
+      const rule = rrulestr(ruleStr);
+      const dates = rule.between(rangeStart, rangeEnd, true);
+      for (const date of dates) {
+        const end = new Date(date.getTime() + (event.end - event.start));
+        expanded.push({
+          ...event,
+          start: date,
+          end,
+          isRecurring: true,
+        });
+      }
+    } else {
+      if (event.start >= rangeStart && event.start <= rangeEnd) {
+        expanded.push(event);
+      }
+    }
+  }
+  return expanded;
+}
+
+function formatIcsDate(d) {
+  // Palauttaa esim. 20240815T090000Z
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+}
 
 /* Timetable */
 const WEEKDAYS = ["maanantai","tiistai","keskiviikko","torstai","perjantai"];
@@ -440,14 +472,13 @@ export default function App() {
         if(!url) continue;
         try{
           const ics = await fetchICS(url, mergedCfg.icsProxy);
-          const events = parseICS(ics).filter(e=> e.start>=today && e.start<=future);
-          
-          for(const e of events){
-            const wd = toWeekdayKey(e.start);
-            if(wd && newTimetable[wd] && newTimetable[wd][name]) {
-               newTimetable[wd][name].push(e);
-            }
-          }
+          const events = parseICS(ics);
+          const expandedEvents = expandRecurringEvents(events, today, future);
+          for(const e of expandedEvents){
+          const wd = toWeekdayKey(e.start);
+          if(wd && newTimetable[wd] && newTimetable[wd][name]) {newTimetable[wd][name].push(e);
+  }
+}
         }catch(inner){
           setErr(prev=> prev ? prev + " | " + name + ": " + inner.message : (name + ": " + inner.message));
         }
