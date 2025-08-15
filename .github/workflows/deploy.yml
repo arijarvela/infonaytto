@@ -28,11 +28,10 @@ jobs:
 
       - name: Install deps
         run: npm install --no-audit --no-fund
-
+        run: npm install rrule
       - name: Build
         run: npm run build
         env:
-          VITE_OWM_API_KEY: ${{ secrets.VITE_OWM_API_KEY }}
           VITE_ICS_ONERVA: ${{ vars.VITE_ICS_ONERVA }}
           VITE_ICS_NANNI: ${{ vars.VITE_ICS_NANNI }}
           VITE_ICS_ELMERI: ${{ vars.VITE_ICS_ELMERI }}
