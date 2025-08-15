@@ -454,7 +454,7 @@ export default function App() {
       }
       setCfg(currentCfg => ({...currentCfg, timetable: newTimetable}));
     }finally{ setLoading(false); }
-  }, [JSON.stringify(mergedCfg.ics), mergedCfg.icsProxy, mergedCfg.kids, setCfg]); 
+  }, [JSON.stringify(mergedCfg.ics), mergedCfg.icsProxy, JSON.stringify(mergedCfg.kids)]); 
 
   useEffect(() => {
     pullIcsAll();
