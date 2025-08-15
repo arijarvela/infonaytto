@@ -211,7 +211,51 @@ function WeatherCard({ city }) {
 
 /* ICS helpers */
 function unfoldIcsLines(text) { const lines = text.split(/\r?\n/); const out=[]; for (const l of lines){ if(l.startsWith(" ")||l.startsWith("\t")) out[out.length-1]+=l.slice(1); else out.push(l);} return out; }
-function parseIcsDate(v){ if(!v) return null; const z=v.endsWith("Z"); if(v.length===8){const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8); return new Date(Date.UTC(y,m,d));} const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8),hh=+v.slice(9,11)||0,mm=+v.slice(11,13)||0,ss=+v.slice(13,15)||0; return z? new Date(Date.UTC(y,m,d,hh,mm,ss)) : new Date(y,m,d,hh,mm,ss); }
+function parseIcsDate(v) {
+  if (!v) return null;
+  // Muoto esim. 20250814T121500
+  const match = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?$/);
+  if (match) {
+    const [_, y, m, d, H, M, S] = match;
+    return new Date(+y, +m - 1, +d, +H, +M, S ? +S : 0);
+  }
+  // Vanha fallback
+  const z = v.endsWith("Z");
+  if (v.length === 8) {
+    const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+    return new Date(Date.UTC(y, m, d));
+  }
+  const y = +v.slice(0, 4), m = +v.slice(4, 6) - 1, d = +v.slice(6, 8);
+  const H = +v.slice(9, 11), M = +v.slice(11, 13), S = +v.slice(13, 15) || 0;
+  if (z) return new Date(Date.UTC(y, m, d, H, M, S));
+  return new Date(y, m, d, H, M, S);
+}
+
+function parseICS(text) {
+  const lines = unfoldIcsLines(text);
+  const ev = [];
+  let cur = null;
+  for (const ln of lines) {
+    if (ln === "BEGIN:VEVENT") cur = {};
+    else if (ln === "END:VEVENT") {
+      if (cur.DTSTART && cur.DTEND) {
+        cur.start = parseIcsDate(cur.DTSTART);
+        cur.end = parseIcsDate(cur.DTEND);
+        ev.push(cur);
+      }
+    } else if (cur) {
+      if (ln.startsWith("DTSTART")) {
+        const parts = ln.split(":");
+        cur.DTSTART = parts[1];
+      } else if (ln.startsWith("DTEND")) {
+        const parts = ln.split(":");
+        cur.DTEND = parts[1];
+      } else if (ln.startsWith("SUMMARY:")) cur.summary = ln.slice(8);
+      else if (ln.startsWith("RRULE:")) cur.RRULE = ln.slice(6);
+    }
+  }
+  return ev;
+}
 function parseICS(text){ const lines=unfoldIcsLines(text); const ev=[]; let cur=null; for(const ln of lines){ if(ln==="BEGIN:VEVENT") cur={}; else if(ln==="END:VEVENT"){ if(cur.DTSTART&&cur.DTEND){ ev.push({ summary:cur.SUMMARY||"", start:parseIcsDate(cur.DTSTART), end:parseIcsDate(cur.DTEND), location:cur.LOCATION||"" }); } cur=null; } else if(cur){ const i=ln.indexOf(":"); if(i>-1){ const k=ln.slice(0,i).split(";")[0]; const v=ln.slice(i+1); cur[k]=v; } } } return ev; }
 async function fetchICS(url, proxy){ const u = proxy ? `${proxy}${encodeURIComponent(url)}` : url; const res = await fetch(u, {redirect:"follow"}); if(!res.ok){ throw new Error(`ICS ${res.status}`); } return await res.text(); }
 function expandRecurringEvents(events, rangeStart, rangeEnd) {
